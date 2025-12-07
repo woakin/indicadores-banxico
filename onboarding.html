@@ -58,6 +58,29 @@
       <div class="card">
         <h1>Añadir serie por ID</h1>
         <p>Pega un <strong>ID SIE</strong> (ej. <code>SF43718</code>, <code>SF61745</code>) y define el formato.</p>
+        <p>¿No sabes cuál ID usar? Consulta el 
+          <a href="https://www.banxico.org.mx/SieAPIRest/service/v1/doc/catalogoSeries" target="_blank" rel="noopener">
+            catálogo completo de series del SIE
+          </a>.
+        </p>
+
+        <div class="row">
+          <input id="seriesId" type="text" placeholder="ID de serie (SFxxxxx)" class="w-120">
+          <select id="seriesType" class="w-120">
+            <option value="percent">%</option>
+            <option value="currency">$</option>
+            <option value="number">#</option>
+          </select>
+          <input id="seriesCurrency" type="text" placeholder="MXN" class="w-90">
+          <select id="seriesDecimals" class="w-90">
+            <option>0</option><option>1</option><option selected>2</option>
+            <option>3</option><option>4</option><option>5</option><option>6</option>
+          </select>
+          <button id="addById">Añadir</button>
+        </div>
+        <div class="note">Si hay token, validamos el ID y tomamos el título de Banxico. Si no, se guarda tal cual.</div>
+      </div>
+    </div>
         <div class="row">
           <input id="seriesId" type="text" placeholder="ID de serie (SFxxxxx)" class="w-120">
           <select id="seriesType" class="w-120">
@@ -91,4 +114,5 @@
   <script src="onboarding.js"></script>
 </body>
 </html>
+
 
