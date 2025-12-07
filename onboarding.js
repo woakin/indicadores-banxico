@@ -57,36 +57,56 @@
     chrome.tabs.create({ url: chrome.runtime.getURL("popup.html") });
   });
 
-  $("#addById")?.addEventListener("click", async () => {
-    const id = $("#seriesId").value.trim().toUpperCase();
-    const type = $("#seriesType").value;
-    const currency = $("#seriesCurrency").value.trim().toUpperCase() || undefined;
-    const decimals = Number($("#seriesDecimals").value);
-    if (!/^S[FH]\d{3,}$/.test(id)) { say("ID inválido. Formato: SFxxxxx."); return; }
+$("#addById")?.addEventListener("click", async () => {
+  const id = $("#seriesId").value.trim().toUpperCase();
+  if (!/^S[FH]\d{3,}$/.test(id)) { say("ID inválido. Formato: SFxxxxx."); return; }
 
-    const st = await chrome.storage.local.get(["sieToken", "sieSeries"]);
-    const list = Array.isArray(st.sieSeries) ? st.sieSeries : [];
-    if (list.find(s => s.id === id)) { say("Ya está en la lista."); return; }
+  const st = await chrome.storage.local.get(["sieToken","sieSeries"]);
+  const list = Array.isArray(st.sieSeries) ? st.sieSeries : [];
+  if (list.find(s => s.id === id)) { say("Ya está en la lista."); return; }
 
-    let title = id;
-    if (st.sieToken) {
-      try {
-        const url = `https://www.banxico.org.mx/SieAPIRest/service/v1/series/${id}/datos/oportuno?mediaType=json&token=${encodeURIComponent(st.sieToken)}`;
-        const r = await fetch(url, { cache: "no-store", redirect: "follow" });
-        if (r.ok) {
-          const j = await r.json();
-          title = j?.bmx?.series?.[0]?.titulo || j?.bmx?.series?.[0]?.idSerie || id;
+  let title = id;
+  let type = "number";
+  let currency = undefined;
+  let decimals = 2;
+
+  if (st.sieToken) {
+    try {
+      // 1. Primero obtenemos metadatos (más ligero que /datos/oportuno)
+      const metaUrl = `https://www.banxico.org.mx/SieAPIRest/service/v1/series/${id}?mediaType=json&token=${encodeURIComponent(st.sieToken)}`;
+      const metaRes = await fetch(metaUrl, { cache: "no-store" });
+      
+      if (metaRes.ok) {
+        const metaJson = await metaRes.json();
+        const serie = metaJson?.bmx?.series?.[0];
+        if (serie) {
+          title = serie.titulo || id;
+          const unidad = (serie.unidad || "").toLowerCase();
+
+          if (unidad.includes("por ciento") || unidad.includes("%")) {
+            type = "percent";
+            decimals = 4;
+          } else if (unidad.includes("pesos por") || unidad.includes("dólares por") || id === "SF43718") {
+            type = "currency";
+            currency = "MXN";
+            decimals = 4;
+          } else if (unidad.includes("índice") || unidad.includes("udis")) {
+            type = "number";
+            decimals = 4;
+          }
+          // Puedes agregar más reglas específicas aquí (INPC, CETES, etc.)
         }
-      } catch { /* silencioso */ }
-    }
+      }
+    } catch (e) { /* falla silenciosa, usa defaults */ }
+  }
 
-    const item = { id, title, type, currency, decimals: Number.isFinite(decimals) ? decimals : 2 };
-    const next = [...list, item];
-    await chrome.storage.local.set({ sieSeries: next });
-    renderSelected(next);
-    say("Serie añadida.");
-    $("#seriesId").value = "";
-  });
+  const item = { id, title, type, currency, decimals };
+  const next = [...list, item];
+  await chrome.storage.local.set({ sieSeries: next });
+  renderSelected(next);
+  say("Serie añadida con formato automático.");
+  $("#seriesId").value = "";
+});
 
   $("#saveSel")?.addEventListener("click", () => say("Selección guardada."));
 
