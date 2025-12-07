@@ -34,7 +34,16 @@ function fmtValue(cfg, datoStr) {
   });
 }
 
-function render(rows, warn=false) {
+function fmtDate(dateStr, periodicity) {
+  if (!dateStr || dateStr === "—") return "—";
+  const date = new Date(dateStr + "T12:00:00Z");  // evita problemas de zona horaria
+  const opts = periodicity && periodicity.includes("Mensual")
+    ? { month: "short", year: "numeric" }
+    : { day: "2-digit", month: "2-digit", year: "numeric" };
+  return date.toLocaleDateString("es-MX", opts);
+}
+
+function render(rows, warn = false) {
   $("#warning").style.display = warn ? "block" : "none";
   const tb = $("#tbody"); tb.innerHTML = "";
   for (const r of rows) {
@@ -45,21 +54,21 @@ function render(rows, warn=false) {
 }
 
 async function refresh() {
-  const { sieToken, sieSeries } = await chrome.storage.local.get(["sieToken","sieSeries"]);
+  const { sieToken, sieSeries } = await chrome.storage.local.get(["sieToken", "sieSeries"]);
 
   if (!sieToken) {
-    render([{name:"Configura tu token en Onboarding", value:"—", date:"—"}], true);
+    render([{ name: "Configura tu token en Onboarding", value: "—", date: "—" }], true);
     return;
   }
 
-  const list = Array.isArray(sieSeries) && sieSeries.length ? sieSeries : [
-    { id:"SF61745",  title:"Tasa objetivo",                        type:"percent",  decimals:2 },
-    { id:"SF60648",  title:"TIIE a 28 días",                       type:"percent",  decimals:4 },
-    { id:"SF60633",  title:"CETES a 28 días",                      type:"percent",  decimals:2 },
-    { id:"SF331451", title:"Fondeo bancario (TIIE de fondeo 1 día)", type:"percent", decimals:4 },
-    { id:"SF43718",  title:"Tipo de cambio FIX (USD/MXN)",         type:"currency", currency:"MXN", decimals:4 },
-    { id:"SF60653",  title:"Tipo de cambio para pagos (USD/MXN)",  type:"currency", currency:"MXN", decimals:4 }
-  ];
+  let list = Array.isArray(sieSeries) ? sieSeries : [];
+  if (list.length === 0) {
+    // Defaults de respaldo (solo si nada guardado)
+    list = [
+      { id: "SF43783", title: "TIIE a 28 días (%)", type: "percent", currency: "MXN", decimals: 4, periodicity: "Diaria" },
+      { id: "SF43718", title: "Tipo de cambio Pesos por dólar (FIX)", type: "currency", currency: "MXN", decimals: 4, periodicity: "Diaria" }
+    ];
+  }
 
   try {
     const idsCsv = list.map(s => s.id).join(",");
@@ -69,8 +78,11 @@ async function refresh() {
     const rows = list.map(cfg => {
       const s = byId.get(cfg.id);
       const d = s?.datos?.[0];
-      return { name: cfg.title || cfg.id, value: fmtValue(cfg, d?.dato), date: d?.fecha || "—" };
+      const value = fmtValue(cfg, d?.dato);
+      const date = fmtDate(d?.fecha, cfg.periodicity);
+      return { name: cfg.title || cfg.id, value, date };
     });
+
     render(rows, false);
   } catch (e) {
     render(list.map(cfg => ({ name: cfg.title || cfg.id, value: "—", date: `Error: ${e.message}` })), false);
