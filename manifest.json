@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Indicadores Banxico (SIE)",
+  "version": "2.2.0",
+  "description": "Consulta rápida de series del SIE de Banxico con selección y formateo.",
+  "action": { "default_popup": "popup.html" },
+  "options_page": "onboarding.html",
+  "permissions": ["storage"],
+  "host_permissions": ["https://www.banxico.org.mx/*", "https://anterior.banxico.org.mx/*"],
+  "background": { "service_worker": "service_worker.js" },
+  "web_accessible_resources": [
+    {
+      "resources": ["catalog.json"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

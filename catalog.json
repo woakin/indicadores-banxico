@@ -1,0 +1,9 @@
+[
+  { "id": "SF61745",  "title": "Tasa objetivo",                        "type": "percent",  "decimals": 2 },
+  { "id": "SF331451", "title": "Fondeo bancario (TIIE de fondeo 1 día)","type": "percent",  "decimals": 4 },
+  { "id": "SF60648",  "title": "TIIE a 28 días",                        "type": "percent",  "decimals": 4 },
+  { "id": "SF60633",  "title": "CETES a 28 días",                       "type": "percent",  "decimals": 2 },
+  { "id": "SF43718",  "title": "Tipo de cambio FIX (USD/MXN)",          "type": "currency", "decimals": 4, "currency": "MXN" },
+  { "id": "SF60653",  "title": "Tipo de cambio para pagos (USD/MXN)",   "type": "currency", "decimals": 4, "currency": "MXN" },
+  { "id": "SP68257",  "title": "Valor de la UDI",                       "type": "number",   "decimals": 6 }
+]

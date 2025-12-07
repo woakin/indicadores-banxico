@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8">
+<style>
+  body{font:14px Inter,system-ui,Arial;margin:12px;min-width:320px;color:#0f172a}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:6px 4px;border-bottom:1px solid #e5e7eb}
+  .muted{color:#64748b}
+  .btn{appearance:none;border:1px solid #e5e7eb;background:#111827;color:#fff;border-radius:10px;padding:8px 12px;font-weight:600;cursor:pointer}
+  .link{color:#0f172a;text-decoration:none;border-bottom:1px solid #e5e7eb}
+  .warn{background:#f8fafc;border:1px dashed #e5e7eb;border-radius:12px;padding:10px;margin:10px 0;display:none}
+</style>
+<h3>Indicadores Banxico</h3>
+<button id="refresh" class="btn">Actualizar</button>
+<div id="warning" class="warn">
+  Falta tu token SIE. <a href="onboarding.html" class="link" target="_blank">Configúralo aquí</a>.
+</div>
+<table>
+  <thead><tr><th>Indicador</th><th>Valor</th><th>Fecha</th></tr></thead>
+  <tbody id="tbody"></tbody>
+</table>
+<p class="muted">Fuente: SIE Banxico · <a href="https://alasha.biz" target="_blank" class="link">alasha.biz</a></p>
+<script type="module" src="popup.js"></script>
