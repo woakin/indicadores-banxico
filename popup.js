@@ -36,10 +36,23 @@ function fmtValue(cfg, datoStr) {
 
 function fmtDate(dateStr, periodicity) {
   if (!dateStr || dateStr === "—") return "—";
-  const date = new Date(dateStr + "T12:00:00Z");  // evita problemas de zona horaria
-  const opts = periodicity && periodicity.includes("Mensual")
+
+  let date;
+  if (dateStr.match(/^\d{2}\/\d{4}$/)) {
+    const [month, year] = dateStr.split('/');
+    date = new Date(parseInt(year), parseInt(month) - 1, 1);
+  } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    date = new Date(dateStr);
+  } else {
+    return dateStr;
+  }
+
+  if (isNaN(date.getTime())) return "—";
+
+  const opts = (periodicity?.toLowerCase().includes("mensual"))
     ? { month: "short", year: "numeric" }
     : { day: "2-digit", month: "2-digit", year: "numeric" };
+
   return date.toLocaleDateString("es-MX", opts);
 }
 
@@ -63,7 +76,6 @@ async function refresh() {
 
   let list = Array.isArray(sieSeries) ? sieSeries : [];
   if (list.length === 0) {
-    // Defaults de respaldo (solo si nada guardado)
     list = [
       { id: "SF43783", title: "TIIE a 28 días (%)", type: "percent", currency: "MXN", decimals: 4, periodicity: "Diaria" },
       { id: "SF43718", title: "Tipo de cambio Pesos por dólar (FIX)", type: "currency", currency: "MXN", decimals: 4, periodicity: "Diaria" }
