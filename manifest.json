@@ -8,12 +8,6 @@
   "permissions": ["storage"],
   "host_permissions": ["https://www.banxico.org.mx/*", "https://anterior.banxico.org.mx/*"],
   "background": { "service_worker": "service_worker.js" },
-  "web_accessible_resources": [
-    {
-      "resources": ["catalog.json"],
-      "matches": ["<all_urls>"]
-    }
-  ],
   "icons": {
     "16": "icon16.png",
     "48": "icon48.png",

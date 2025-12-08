@@ -1,21 +1,56 @@
 <!doctype html><meta charset="utf-8">
 <style>
-  body{font:14px Inter,system-ui,Arial;margin:12px;min-width:320px;color:#0f172a}
-  table{width:100%;border-collapse:collapse}
-  th,td{padding:6px 4px;border-bottom:1px solid #e5e7eb}
-  .muted{color:#64748b}
-  .btn{appearance:none;border:1px solid #e5e7eb;background:#111827;color:#fff;border-radius:10px;padding:8px 12px;font-weight:600;cursor:pointer}
-  .link{color:#0f172a;text-decoration:none;border-bottom:1px solid #e5e7eb}
-  .warn{background:#f8fafc;border:1px dashed #e5e7eb;border-radius:12px;padding:10px;margin:10px 0;display:none}
+  :root{
+    --bg:#f8fafc;
+    --fg:#0f172a;
+    --muted:#64748b;
+    --border:#e5e7eb;
+    --accent:#0f172a;
+    --surface:#fff;
+  }
+  body{font:14px Inter,system-ui,Arial;margin:12px;min-width:320px;color:var(--fg);background:var(--bg)}
+  .shell{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 12px 10px;box-shadow:0 10px 30px rgba(15,23,42,0.06)}
+  .header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}
+  h3{margin:0;font-size:15px;font-weight:700;letter-spacing:-0.01em}
+  .btn{appearance:none;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer;font-size:13px;transition:background 0.2s,border-color 0.2s}
+  .btn:hover{background:#0b1224}
+  .btn:focus-visible{outline:3px solid rgba(59,130,246,0.25);outline-offset:2px}
+  .link{color:var(--fg);text-decoration:none;border-bottom:1px solid var(--border)}
+  .warn{background:#f8fafc;border:1px dashed var(--border);border-radius:12px;padding:10px;margin:10px 0;display:none;font-size:13px}
+  table{width:100%;border-collapse:collapse;margin-top:6px}
+  th,td{padding:7px 4px;border-bottom:1px solid var(--border);font-size:13px}
+  th:nth-child(2),td:nth-child(2){text-align:right}
+  th:nth-child(3),td:nth-child(3){text-align:right;color:var(--muted)}
+  tbody tr:nth-child(odd){background:#f9fafb}
+  .muted{color:var(--muted);font-size:12px;margin:10px 0 4px}
+  .value-cell{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+  .copy-btn{background:none;border:none;cursor:pointer;padding:2px 4px;font-size:14px;color:#94a3b8;transition:color 0.2s,transform 0.08s}
+  .copy-btn:hover{color:var(--fg)}
+  .copy-btn:active{transform:translateY(1px)}
+  .toast{position:fixed;bottom:12px;right:12px;background:var(--accent);color:#fff;padding:10px 14px;border-radius:10px;font-size:13px;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:1000}
+  .toast.show{opacity:1}
+  .loading{display:none;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-left:auto}
+  .loading::before{content:"";width:12px;height:12px;border:2px solid #cbd5e1;border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin 0.8s linear infinite}
+  body.loading .loading{display:flex}
+  @keyframes spin{to{transform:rotate(360deg)}}
 </style>
-<h3>Indicadores Banxico</h3>
-<button id="refresh" class="btn">Actualizar</button>
-<div id="warning" class="warn">
-  Falta tu token SIE. <a href="onboarding.html" class="link" target="_blank">Configúralo aquí</a>.
+<div class="shell">
+  <div class="header">
+    <div>
+      <h3>Indicadores Banxico</h3>
+      <p id="lastUpdated" class="muted" style="margin:2px 0">Actualizado: —</p>
+    </div>
+    <div class="loading" id="loading">Cargando…</div>
+    <button id="refresh" class="btn">Actualizar</button>
+  </div>
+  <div id="warning" class="warn">
+    Falta tu token SIE. <a href="onboarding.html" class="link" target="_blank">Configúralo aquí</a>.
+  </div>
+  <table>
+    <thead><tr><th>Indicador</th><th>Valor</th><th>Fecha</th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div id="toast" class="toast"></div>
+  <p class="muted">Fuente: SIE Banxico · <a href="https://alasha.biz" target="_blank" class="link">alasha.biz</a></p>
 </div>
-<table>
-  <thead><tr><th>Indicador</th><th>Valor</th><th>Fecha</th></tr></thead>
-  <tbody id="tbody"></tbody>
-</table>
-<p class="muted">Fuente: SIE Banxico · <a href="https://alasha.biz" target="_blank" class="link">alasha.biz</a></p>
 <script type="module" src="popup.js"></script>

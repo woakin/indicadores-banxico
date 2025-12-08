@@ -1,32 +1,50 @@
-// onboarding.js – versión final con edición manual efectiva
+// onboarding.js – personalización siempre visible + sugerencia automática
+import { DEFAULT_SERIES, SERIES_ID_REGEX, BANXICO_API_BASE } from './constants.js';
+
 (() => {
   const $ = s => document.querySelector(s);
-  const say = t => { const m = $("#msg"); if (m) m.textContent = t || ""; };
+  const sayToken = t => { const m = $("#msg"); if (m) m.textContent = t || ""; };
+  const saySeries = t => { const m = $("#seriesMsg"); if (m) m.textContent = t || ""; };
 
-  const defaultSeries = [
-    { id: "SF43783", title: "TIIE a 28 días (%)", type: "percent", currency: "MXN", decimals: 4, periodicity: "Diaria", figure: "Sin tipo" },
-    { id: "SF43718", title: "Tipo de cambio Pesos por dólar (FIX)", type: "currency", currency: "MXN", decimals: 4, periodicity: "Diaria", figure: "Sin tipo" }
-  ];
+  // State for tracking if we're in edit mode
+  let editingSeriesId = null;
 
-  function updateFormatControls(forceManual = false) {
-    const hasToken = !!$("#token").value.trim();
-    if (forceManual || !hasToken) {
-      $("#manualFormat").style.display = "flex";
-      $("#autoFormatNote").style.display = "none";
-      $("#manualFormatNote").style.display = "block";
+  // Mostrar controles según si hay token
+  function updateFormatControls(hasToken) {
+    // defensive: element may not exist if DOM not ready
+    const manualFormat = $("#manualFormat");
+    if (manualFormat && manualFormat.style) manualFormat.style.display = "flex";
+  }
+
+  // Update edit mode UI
+  function setEditMode(seriesId, seriesTitle) {
+    editingSeriesId = seriesId;
+    const indicator = $("#editModeIndicator");
+    const addBtn = $("#addById");
+    const cancelBtn = $("#cancelEdit");
+    
+    if (!indicator || !addBtn || !cancelBtn) return;
+
+    if (seriesId) {
+      indicator.style.display = "block";
+      const editingLabel = $("#editingSeriesName");
+      if (editingLabel) editingLabel.textContent = `${seriesTitle} (${seriesId})`;
+      addBtn.textContent = "Guardar cambios";
+      cancelBtn.style.display = "inline-block";
     } else {
-      $("#manualFormat").style.display = "none";
-      $("#autoFormatNote").style.display = "block";
-      $("#manualFormatNote").style.display = "none";
+      indicator.style.display = "none";
+      addBtn.textContent = "Añadir serie";
+      cancelBtn.style.display = "none";
+      editingSeriesId = null;
     }
   }
 
   chrome.storage.local.get(["sieToken", "sieSeries"], ({ sieToken = "", sieSeries = [] }) => {
     $("#token").value = sieToken;
-    updateFormatControls();
+    updateFormatControls(!!sieToken);
 
     if (!Array.isArray(sieSeries) || sieSeries.length === 0) {
-      chrome.storage.local.set({ sieSeries: defaultSeries }, () => renderSelected(defaultSeries));
+      chrome.storage.local.set({ sieSeries: DEFAULT_SERIES }, () => renderSelected(DEFAULT_SERIES));
     } else {
       renderSelected(sieSeries);
     }
@@ -35,19 +53,18 @@
   $("#save")?.addEventListener("click", async () => {
     const t = $("#token").value.trim();
     await chrome.storage.local.set({ sieToken: t });
-    say(t ? "Token guardado." : "Token borrado.");
-    updateFormatControls();
+    sayToken(t ? "Token guardado." : "Token borrado.");
   });
 
   $("#test")?.addEventListener("click", async () => {
     const t = $("#token").value.trim();
-    if (!t) { say("Ingresa un token SIE."); return; }
-    say("Probando token…");
+    if (!t) { sayToken("Ingresa un token SIE."); return; }
+    sayToken("Probando token…");
     try {
       const url = `https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/oportuno?mediaType=json&token=${encodeURIComponent(t)}`;
       const r = await fetch(url, { cache: "no-store" });
-      say(r.ok ? "Token válido." : `HTTP ${r.status}`);
-    } catch (e) { say(`Error: ${e.message}`); }
+      sayToken(r.ok ? "Token válido." : `HTTP ${r.status}`);
+    } catch (e) { sayToken(`Error: ${e.message}`); }
   });
 
   $("#open")?.addEventListener("click", () => {
@@ -56,28 +73,33 @@
 
   $("#addById")?.addEventListener("click", async () => {
     const id = $("#seriesId").value.trim().toUpperCase();
-    if (!/^S[FPGHLMNRST]\d{3,}$/i.test(id)) {
-      say("ID inválido. Ejemplos: SF43718, SL11298, SG25…");
+    if (!SERIES_ID_REGEX.test(id)) {
+      saySeries("ID inválido. Ejemplos: SF43718, SL11298, SG61745…");
+      return;
+    }
+
+    const type = $("#seriesType").value;
+    if (type === "currency" && !$("#seriesCurrency").value.trim()) {
+      saySeries("Para moneda, especifica el código (ej: MXN, USD).");
       return;
     }
 
     const st = await chrome.storage.local.get(["sieToken", "sieSeries"]);
     let list = Array.isArray(st.sieSeries) ? st.sieSeries : [];
     const existingIndex = list.findIndex(s => s.id === id);
-    const isEdit = existingIndex !== -1;
+    const isEdit = editingSeriesId !== null;
 
     let title = id;
-    let type = "number";
-    let currency = undefined;
-    let decimals = 2;
+    let currency = $("#seriesCurrency").value.trim().toUpperCase() || undefined;
+    let decimals = Number($("#seriesDecimals").value) || 2;
     let periodicity = "Desconocida";
     let figure = "Sin tipo";
     const hasToken = !!st.sieToken?.trim();
-    const isManual = $("#manualFormat").style.display.includes("flex");
 
-    if (hasToken && !isEdit && !isManual) {
+    // Sugerencia automática (solo si hay token y no es edición)
+    if (hasToken && !isEdit) {
       try {
-        const metaUrl = `https://www.banxico.org.mx/SieAPIRest/service/v1/series/${id}?mediaType=json&token=${encodeURIComponent(st.sieToken)}`;
+        const metaUrl = `${BANXICO_API_BASE}/series/${id}?mediaType=json&token=${encodeURIComponent(st.sieToken)}`;
         const metaRes = await fetch(metaUrl, { cache: "no-store" });
         if (metaRes.ok) {
           const metaJson = await metaRes.json();
@@ -89,53 +111,70 @@
 
             const texto = `${(serie.unidad || "")} ${(serie.cifra || "")}`.toLowerCase();
 
+            let suggestedType = "number";
+            let suggestedCurrency = undefined;
+            let suggestedDecimals = 2;
+
             if (texto.includes("porcentaje") || texto.includes("por ciento") || texto.includes("%")) {
-              type = "percent";
-              decimals = 4;
+              suggestedType = "percent";
+              suggestedDecimals = 4;
             } else if (texto.includes("pesos") || texto.includes("dólares") || texto.includes("millones") || texto.includes("miles")) {
-              type = "currency";
-              currency = texto.includes("dólares") ? "USD" : "MXN";
-              decimals = texto.includes("miles") || texto.includes("millones") ? 0 : 2;
+              suggestedType = "currency";
+              suggestedCurrency = texto.includes("dólares") ? "USD" : "MXN";
+              suggestedDecimals = texto.includes("miles") || texto.includes("millones") ? 0 : 2;
             } else if (texto.includes("índice") || texto.includes("udis")) {
-              type = "number";
-              decimals = 4;
-            } else {
-              type = "number";
-              decimals = 2;
+              suggestedType = "number";
+              suggestedDecimals = 4;
             }
+
+            // Aplicamos sugerencia en los controles
+            $("#seriesType").value = suggestedType;
+            $("#seriesCurrency").value = suggestedCurrency || "";
+            $("#seriesDecimals").value = suggestedDecimals;
+            type = suggestedType;
+            currency = suggestedCurrency;
+            decimals = suggestedDecimals;
+
+            saySeries("Sugerencia automática aplicada. Cambia si lo prefieres.");
           }
         }
       } catch (e) { /* silencioso */ }
-    } else {
-      type = $("#seriesType").value;
-      currency = $("#seriesCurrency").value.trim().toUpperCase() || undefined;
-      decimals = Number($("#seriesDecimals").value) || 2;
-      if (isEdit) {
-        title = list[existingIndex].title;
-        periodicity = list[existingIndex].periodicity;
-        figure = list[existingIndex].figure;
-      }
+    } else if (isEdit) {
+      title = list[existingIndex].title;
+      periodicity = list[existingIndex].periodicity;
+      figure = list[existingIndex].figure;
     }
 
     const item = { id, title, type, currency, decimals, periodicity, figure };
 
     if (isEdit) {
       list[existingIndex] = item;
-      say("Serie actualizada.");
+      saySeries("Serie actualizada.");
     } else {
       list.push(item);
-      say(isManual ? "Serie añadida manualmente." : "Serie añadida con metadatos automáticos.");
+      // If title is still just the ID, show a note to the user
+      if (title === id) {
+        saySeries(`Serie añadida (sin token: usa el ID como título). Edítala para cambiar el nombre.`);
+      } else {
+        saySeries("Serie añadida.");
+      }
     }
 
     await chrome.storage.local.set({ sieSeries: list });
     renderSelected(list);
     $("#seriesId").value = "";
+    setEditMode(null);
+  });
+
+  // Cancel edit mode
+  $("#cancelEdit")?.addEventListener("click", () => {
+    setEditMode(null);
+    $("#seriesId").value = "";
     $("#seriesType").value = "number";
     $("#seriesCurrency").value = "";
     $("#seriesDecimals").value = "2";
+    saySeries("Edición cancelada.");
   });
-
-  $("#saveSel")?.addEventListener("click", () => say("Selección guardada."));
 
   function renderSelected(list) {
     const box = $("#selected");
@@ -143,14 +182,55 @@
     if (!list?.length) {
       box.innerHTML = `<span class="row-sub">Aún no tienes series seleccionadas.</span>`;
     } else {
-      const wrap = document.createElement("div");
-      wrap.className = "chips";
-      for (const s of list) {
-        const chip = document.createElement("span");
-        chip.className = "chip";
-        chip.textContent = `${s.title} (${s.id})`;
+      const listContainer = document.createElement("div");
+      for (let i = 0; i < list.length; i++) {
+        const s = list[i];
+        const item = document.createElement("div");
+        item.className = "series-item";
+        
+        // Content
+        const content = document.createElement("div");
+        content.className = "series-item-content";
+        content.textContent = `${s.title} (${s.id})`;
+        item.appendChild(content);
+        
+        // Actions
+        const actions = document.createElement("div");
+        actions.className = "series-item-actions";
+        
+        // Up arrow
+        const upBtn = document.createElement("button");
+        upBtn.className = "arrow-btn";
+        upBtn.textContent = "▲";
+        upBtn.disabled = i === 0;
+        upBtn.title = "Mover arriba";
+        upBtn.addEventListener("click", async () => {
+          if (i > 0) {
+            [list[i], list[i - 1]] = [list[i - 1], list[i]];
+            await chrome.storage.local.set({ sieSeries: list });
+            renderSelected(list);
+          }
+        });
+        actions.appendChild(upBtn);
+        
+        // Down arrow
+        const downBtn = document.createElement("button");
+        downBtn.className = "arrow-btn";
+        downBtn.textContent = "▼";
+        downBtn.disabled = i === list.length - 1;
+        downBtn.title = "Mover abajo";
+        downBtn.addEventListener("click", async () => {
+          if (i < list.length - 1) {
+            [list[i], list[i + 1]] = [list[i + 1], list[i]];
+            await chrome.storage.local.set({ sieSeries: list });
+            renderSelected(list);
+          }
+        });
+        actions.appendChild(downBtn);
+        
+        // Edit button
         const editBtn = document.createElement("button");
-        editBtn.className = "chip-x";
+        editBtn.className = "edit-btn";
         editBtn.textContent = "✎";
         editBtn.title = "Editar formato";
         editBtn.addEventListener("click", () => {
@@ -158,44 +238,27 @@
           $("#seriesType").value = s.type || "number";
           $("#seriesCurrency").value = s.currency || "";
           $("#seriesDecimals").value = s.decimals ?? 2;
-          updateFormatControls(true);  // Fuerza modo manual
-          say("Edita los valores y presiona Añadir para guardar cambios.");
+          setEditMode(s.id, s.title);
+          saySeries("Edita y presiona Guardar cambios para actualizar.");
         });
-        const x = document.createElement("button");
-        x.className = "chip-x";
-        x.textContent = "×";
-        x.addEventListener("click", async () => {
-          const st = await chrome.storage.local.get("sieSeries");
-          const next = (st.sieSeries || []).filter(v => v.id !== s.id);
+        actions.appendChild(editBtn);
+        
+        // Delete button
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "delete-btn";
+        deleteBtn.textContent = "×";
+        deleteBtn.title = "Eliminar";
+        deleteBtn.addEventListener("click", async () => {
+          const next = list.filter((_, idx) => idx !== i);
           await chrome.storage.local.set({ sieSeries: next });
           renderSelected(next);
         });
-        chip.appendChild(editBtn);
-        chip.appendChild(x);
-        wrap.appendChild(chip);
+        actions.appendChild(deleteBtn);
+        
+        item.appendChild(actions);
+        listContainer.appendChild(item);
       }
-      box.appendChild(wrap);
-    }
-
-    // Preview
-    const prev = $("#preview");
-    prev.innerHTML = "";
-    if (!list?.length) {
-      prev.innerHTML = `<tr><td colspan="3"><span class="row-sub">Sin series</span></td></tr>`;
-      return;
-    }
-    const ejemplo = 12345.67;
-    for (const s of list) {
-      let valEj = ejemplo.toLocaleString("es-MX", {minimumFractionDigits: s.decimals ?? 2, maximumFractionDigits: s.decimals ?? 2});
-      if (s.type === "currency") {
-        valEj = ejemplo.toLocaleString("es-MX", {style: "currency", currency: s.currency || "MXN", minimumFractionDigits: s.decimals ?? 2, maximumFractionDigits: s.decimals ?? 2});
-      } else if (s.type === "percent") {
-        valEj = (ejemplo / 100).toLocaleString("es-MX", {style: "percent", minimumFractionDigits: s.decimals ?? 2, maximumFractionDigits: s.decimals ?? 2});
-      }
-      const fechaEj = s.periodicity?.toLowerCase().includes("mensual") ? "Dic 2025" : "08/12/2025";
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${s.title} (${s.id})</td><td>${valEj}</td><td>${fechaEj}</td>`;
-      prev.appendChild(tr);
+      box.appendChild(listContainer);
     }
   }
 })();
