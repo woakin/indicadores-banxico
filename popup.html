@@ -7,8 +7,8 @@
     --border:#e5e7eb;
     --accent:#0f172a;
     --surface:#fff;
-  }
-  body{font:14px Inter,system-ui,Arial;margin:12px;min-width:320px;color:var(--fg);background:var(--bg)}
+  }  
+  body{font:14px Inter,system-ui,Arial;margin:12px;min-width:550px;color:var(--fg);background:var(--bg)}
   .shell{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 12px 10px;box-shadow:0 10px 30px rgba(15,23,42,0.06)}
   .header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}
   h3{margin:0;font-size:15px;font-weight:700;letter-spacing:-0.01em}
@@ -33,24 +33,55 @@
   .loading::before{content:"";width:12px;height:12px;border:2px solid #cbd5e1;border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin 0.8s linear infinite}
   body.loading .loading{display:flex}
   @keyframes spin{to{transform:rotate(360deg)}}
+  /* Historical View Styles */
+  #historicalView { display: none; }
+  #historicalHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  #historicalTitle { font-size: 1.1em; font-weight: 600; color: #0f172a; margin: 0; }
+  #dateControls { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  #dateControls label { font-size: 0.9em; }
+  #dateControls input { border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; }
+  #historicalTableContainer { max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+  #historicalError { color: #dc2626; font-size: 0.9em; margin-top: 10px; }
 </style>
 <div class="shell">
-  <div class="header">
-    <div>
-      <h3>Indicadores Banxico</h3>
-      <p id="lastUpdated" class="muted" style="margin:2px 0">Actualizado: —</p>
+  <div id="mainView">
+    <div class="header">
+      <div>
+        <h3>Indicadores Banxico</h3>
+        <p id="lastUpdated" class="muted" style="margin:2px 0">Actualizado: —</p>
+      </div>
+      <div class="loading" id="loading">Cargando…</div>
+      <button id="refresh" class="btn">Actualizar</button>
     </div>
-    <div class="loading" id="loading">Cargando…</div>
-    <button id="refresh" class="btn">Actualizar</button>
+    <div id="warning" class="warn">
+      Falta tu token SIE. <a href="onboarding.html" class="link" target="_blank">Configúralo aquí</a>.
+    </div>
+    <table>
+      <thead><tr><th>Indicador</th><th>Valor</th><th>Fecha</th><th style="width:20px;"></th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div id="toast" class="toast"></div>
+    <p class="muted">Fuente: SIE Banxico · <a href="https://alasha.biz" target="_blank" class="link">alasha.biz</a></p>
   </div>
-  <div id="warning" class="warn">
-    Falta tu token SIE. <a href="onboarding.html" class="link" target="_blank">Configúralo aquí</a>.
+  <div id="historicalView">
+    <div id="historicalHeader">
+      <h3 id="historicalTitle"></h3>
+      <button id="backToList" class="btn">← Volver</button>
+    </div>
+    <div id="dateControls">
+      <label for="startDate">Desde:</label>
+      <input type="date" id="startDate">
+      <label for="endDate">Hasta:</label>
+      <input type="date" id="endDate">
+      <button id="updateHistory" class="btn">Ver</button>
+    </div>
+    <div id="historicalTableContainer">
+      <!-- La tabla de datos históricos se insertará aquí -->
+    </div>
+    <div id="noDataMessage" style="display: none; padding: 20px; text-align: center; color: var(--muted);">
+      <p>No se encontraron datos para este rango de fechas.</p>
+    </div>
+    <div id="historicalError"></div>
   </div>
-  <table>
-    <thead><tr><th>Indicador</th><th>Valor</th><th>Fecha</th></tr></thead>
-    <tbody id="tbody"></tbody>
-  </table>
-  <div id="toast" class="toast"></div>
-  <p class="muted">Fuente: SIE Banxico · <a href="https://alasha.biz" target="_blank" class="link">alasha.biz</a></p>
 </div>
 <script type="module" src="popup.js"></script>

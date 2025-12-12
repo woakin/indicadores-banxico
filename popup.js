@@ -1,9 +1,9 @@
 import { DEFAULT_SERIES, BANXICO_API_BASE } from './constants.js';
 
 const $ = s => document.querySelector(s);
-const esc = s => String(s ?? "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 
-// Toast notification for copy feedback
+
+// --- General UI Functions ---
 function showToast(msg, duration = 1500) {
   const toast = $("#toast");
   toast.textContent = msg;
@@ -11,7 +11,6 @@ function showToast(msg, duration = 1500) {
   setTimeout(() => toast.classList.remove("show"), duration);
 }
 
-// Copy value to clipboard
 async function copyToClipboard(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -21,6 +20,7 @@ async function copyToClipboard(text) {
   }
 }
 
+// --- Banxico API & Data Formatting ---
 async function fetchOportuno(idsCsv, token) {
   const url = `${BANXICO_API_BASE}/series/${idsCsv}/datos?mediaType=json&token=${encodeURIComponent(token)}`;
   const r = await fetch(url, { cache: "no-store" });
@@ -65,8 +65,9 @@ function fmtDate(dateStr, periodicity) {
   if (dateStr.match(/^\d{2}\/\d{4}$/)) {
     const [month, year] = dateStr.split('/');
     date = new Date(parseInt(year), parseInt(month) - 1, 1);
-  } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-    date = new Date(dateStr);
+  } else if (dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+    const [day, month, year] = dateStr.split('/');
+    date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
   } else {
     return dateStr;
   }
@@ -91,6 +92,8 @@ function latestValidObservation(datos) {
   return undefined;
 }
 
+// --- Main View Rendering ---
+
 function render(rows, warn = false) {
   $("#warning").style.display = warn ? "block" : "none";
   const tb = $("#tbody"); tb.innerHTML = "";
@@ -99,17 +102,15 @@ function render(rows, warn = false) {
     
     // Name cell with tooltip
     const nameCell = document.createElement("td");
-    const nameSpan = document.createElement("span");
-    nameSpan.textContent = r.name;
+    nameCell.textContent = r.name;
     if (r.description || r.periodicity) {
-      nameSpan.style.borderBottom = "1px dotted #cbd5e1";
-      nameSpan.style.cursor = "help";
+      nameCell.style.borderBottom = "1px dotted #cbd5e1";
+      nameCell.style.cursor = "help";
       const tooltip = [];
       if (r.description) tooltip.push(r.description);
       if (r.periodicity) tooltip.push(`Periodicidad: ${r.periodicity}`);
-      nameSpan.title = tooltip.join("\n");
+      nameCell.title = tooltip.join("\n");
     }
-    nameCell.appendChild(nameSpan);
     tr.appendChild(nameCell);
     
     // Value cell with copy button
@@ -138,7 +139,22 @@ function render(rows, warn = false) {
     const dateCell = document.createElement("td");
     dateCell.textContent = r.date;
     tr.appendChild(dateCell);
-    
+
+    // Graph button cell
+    const graphCell = document.createElement("td");
+    // Only show detail button if there is data for the series
+    if (r.date !== "Sin datos" && r.date !== "—") {
+      const detailBtn = document.createElement("button");
+      detailBtn.className = "copy-btn"; // Re-use style for a clean look
+      detailBtn.textContent = "📈";
+      detailBtn.title = "Ver gráfico histórico";
+      detailBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        showHistoricalView(r.id, r.name, r.config);
+      });
+      graphCell.appendChild(detailBtn);
+    }
+    tr.appendChild(graphCell);
     tb.append(tr);
   }
 }
@@ -181,8 +197,8 @@ async function refresh() {
       const latest = latestValidObservation(datos);
       const value = fmtValue(cfg, latest?.dato);
       const date = fmtDate(latest?.fecha, cfg.periodicity);
-      const resolvedDate = latest ? (date || "Sin datos") : "Sin datos";
-      return { name: cfg.title || cfg.id, value, date: resolvedDate, description: cfg.description, periodicity: cfg.periodicity };
+      const resolvedDate = latest ? (date || "Sin datos") : "Sin datos";      
+      return { id: cfg.id, name: cfg.title || cfg.id, value, date: resolvedDate, description: cfg.description, periodicity: cfg.periodicity, config: cfg };
     });
 
     render(rows, false);
@@ -196,5 +212,116 @@ async function refresh() {
   }
 }
 
+// --- Historical View Logic ---
+
+async function fetchHistoricalData(seriesId, token, startDate, endDate) {
+  const url = `${BANXICO_API_BASE}/series/${seriesId}/datos/${startDate}/${endDate}?mediaType=json&token=${encodeURIComponent(token)}`;
+  const response = await fetch(url, { cache: "no-store" });
+
+  if (!response.ok) {
+    if (response.status === 401) throw new Error("Token SIE inválido o expirado.");
+    if (response.status === 404) throw new Error("No se encontraron datos para este rango de fechas.");
+    throw new Error(`Error en la API de Banxico: ${response.statusText}`);
+  }
+  const data = await response.json();
+  const seriesData = data.bmx?.series?.[0]?.datos;
+  if (!seriesData || seriesData.length === 0) {
+    throw new Error("No se encontraron datos para este rango de fechas.");
+  }
+  return seriesData;
+}
+
+function renderHistoricalTable(data, config) {
+  const container = $("#historicalTableContainer");
+  if (!data || data.length === 0) {
+    container.innerHTML = ""; // Limpiamos por si acaso.
+    return;
+  }
+
+  const table = document.createElement("table");
+  table.innerHTML = `<thead><tr><th>Fecha</th><th>Valor</th></tr></thead>`;
+  const tbody = document.createElement("tbody");
+
+  // Iteramos en reversa para mostrar los más recientes primero
+  for (let i = data.length - 1; i >= 0; i--) {
+    const point = data[i];
+    const tr = document.createElement("tr");
+    const dateCell = document.createElement("td");
+    const valueCell = document.createElement("td");
+
+    dateCell.textContent = fmtDate(point.fecha, config.periodicity);
+    valueCell.textContent = fmtValue(config, point.dato);
+    valueCell.style.textAlign = "right";
+
+    tr.appendChild(dateCell);
+    tr.appendChild(valueCell);
+    tbody.appendChild(tr);
+  }
+
+  table.appendChild(tbody);
+  container.innerHTML = ""; // Limpiar contenido anterior
+  container.appendChild(table);
+}
+
+async function updateHistoricalView() {
+  const view = $("#historicalView");
+  const seriesId = view.dataset.seriesId;
+  const config = JSON.parse(view.dataset.config);
+  const startDate = $("#startDate").value;
+  const endDate = $("#endDate").value;
+
+  document.body.classList.add('loading');
+  $("#historicalError").textContent = "";
+  // Ocultar todos los contenedores de contenido antes de la llamada a la API
+  $("#historicalTableContainer").innerHTML = "";
+  $("#historicalTableContainer").style.display = "none";
+  $("#noDataMessage").style.display = "none";
+
+  try {
+    const { sieToken } = await chrome.storage.local.get("sieToken");
+    if (!sieToken) throw new Error("Falta el token de la API.");
+    
+    const historicalData = await fetchHistoricalData(seriesId, sieToken, startDate, endDate);
+    $("#historicalTableContainer").style.display = "block";
+    renderHistoricalTable(historicalData, config);
+  } catch (error) {
+    // Si el error es "No se encontraron datos", mostramos el mensaje amigable.
+    if (error.message.includes("No se encontraron datos")) {
+      $("#noDataMessage").style.display = "block";
+    } else {
+      $("#historicalError").textContent = `Error: ${error.message}`;
+    }
+  } finally {
+    document.body.classList.remove('loading');
+  }
+}
+
+function showHistoricalView(seriesId, seriesTitle, seriesConfig) {
+  $("#mainView").style.display = "none";
+  $("#historicalView").style.display = "block";
+
+  const view = $("#historicalView");
+  view.dataset.seriesId = seriesId;
+  view.dataset.config = JSON.stringify(seriesConfig); // Guardamos la config para formatear valores
+
+  $("#historicalTitle").textContent = seriesTitle;
+
+  // Rango de fechas por defecto: último mes
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setMonth(endDate.getMonth() - 1);
+  $("#endDate").value = endDate.toISOString().slice(0, 10);
+  $("#startDate").value = startDate.toISOString().slice(0, 10);
+
+  updateHistoricalView();
+}
+
+// --- Event Listeners ---
 $("#refresh")?.addEventListener("click", refresh);
+$("#backToList")?.addEventListener("click", () => {
+  $("#historicalView").style.display = "none";
+  $("#mainView").style.display = "block";
+});
+$("#updateHistory")?.addEventListener("click", updateHistoricalView);
+
 refresh();
