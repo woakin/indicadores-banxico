@@ -5,7 +5,7 @@
   "description": "Consulta rápida de series del SIE de Banxico con selección y formateo.",
   "action": { "default_popup": "popup.html" },
   "options_page": "onboarding.html",
-  "permissions": ["storage", "tabs"],
+  "permissions": ["storage"],
   "host_permissions": [
     "https://www.banxico.org.mx/*", 
     "https://anterior.banxico.org.mx/*"
