@@ -2,6 +2,10 @@ import { DEFAULT_SERIES, BANXICO_API_BASE } from './constants.js';
 
 const $ = s => document.querySelector(s);
 
+let currentUdiValue = null;
+let currentUdiDate = null;
+let currentMode = "udisToPesos";
+
 
 // --- General UI Functions ---
 function showToast(msg, duration = 1500) {
@@ -99,7 +103,7 @@ function render(rows, warn = false) {
   const tb = $("#tbody"); tb.innerHTML = "";
   for (const r of rows) {
     const tr = document.createElement("tr");
-    
+
     // Name cell with tooltip
     const nameCell = document.createElement("td");
     nameCell.textContent = r.name;
@@ -112,16 +116,16 @@ function render(rows, warn = false) {
       nameCell.title = tooltip.join("\n");
     }
     tr.appendChild(nameCell);
-    
+
     // Value cell with copy button
     const valueCell = document.createElement("td");
     const valueDiv = document.createElement("div");
     valueDiv.className = "value-cell";
-    
+
     const valueSpan = document.createElement("span");
     valueSpan.textContent = r.value;
     valueDiv.appendChild(valueSpan);
-    
+
     const copyBtn = document.createElement("button");
     copyBtn.className = "copy-btn";
     copyBtn.textContent = "📋";
@@ -130,11 +134,11 @@ function render(rows, warn = false) {
       e.preventDefault();
       copyToClipboard(r.value);
     });
-    
+
     valueDiv.appendChild(copyBtn);
     valueCell.appendChild(valueDiv);
     tr.appendChild(valueCell);
-    
+
     // Date cell
     const dateCell = document.createElement("td");
     dateCell.textContent = r.date;
@@ -197,18 +201,96 @@ async function refresh() {
       const latest = latestValidObservation(datos);
       const value = fmtValue(cfg, latest?.dato);
       const date = fmtDate(latest?.fecha, cfg.periodicity);
-      const resolvedDate = latest ? (date || "Sin datos") : "Sin datos";      
+      const resolvedDate = latest ? (date || "Sin datos") : "Sin datos";
       return { id: cfg.id, name: cfg.title || cfg.id, value, date: resolvedDate, description: cfg.description, periodicity: cfg.periodicity, config: cfg };
     });
 
+    // Capture UDI value for calculator (Serie SP68257)
+    const udiSerie = byId.get('SP68257');
+    if (udiSerie) {
+      const udiObs = latestValidObservation(udiSerie.datos);
+      if (udiObs) {
+        currentUdiValue = Number(udiObs.dato.replace(",", "."));
+        currentUdiDate = fmtDate(udiObs.fecha, "diaria");
+        // Save to storage for persistence
+        await chrome.storage.local.set({
+          cachedUdiValue: currentUdiValue,
+          cachedUdiDate: currentUdiDate
+        });
+        updateCalculator();
+      }
+    }
+
     render(rows, false);
-    
+
     // Save last updated timestamp
     await chrome.storage.local.set({ lastUpdated: Date.now() });
   } catch (e) {
     render(list.map(cfg => ({ name: cfg.title || cfg.id, value: "—", date: `Error: ${e.message}` })), false);
+    $("#calcResult").textContent = "Error al obtener valor UDI";
   } finally {
     document.body.classList.remove("loading");
+  }
+}
+
+// --- Calculator Logic ---
+function updateCalculator() {
+  const amountStr = $("#calcAmount").value.trim();
+  const amount = parseFloat(amountStr);
+  const resultArea = $("#calcResult");
+  const dateArea = $("#calcDate");
+  const modeLabel = $("#calcModeLabel");
+
+  if (!currentUdiValue) {
+    resultArea.textContent = "Cargando valor de UDI...";
+    dateArea.textContent = "";
+    return;
+  }
+
+  // Update Label
+  if (currentMode === "pesosToUdis") {
+    modeLabel.innerHTML = "Pesos &rarr; UDIs";
+  } else {
+    modeLabel.innerHTML = "UDIs &rarr; Pesos";
+  }
+
+  // Input validation
+  if (amountStr === "") {
+    resultArea.textContent = "Ingrese un monto";
+    dateArea.textContent = currentUdiDate ? `Basado en el valor del ${currentUdiDate}` : "";
+    return;
+  }
+
+  if (isNaN(amount)) {
+    resultArea.textContent = "Monto inválido";
+    dateArea.textContent = "";
+    return;
+  }
+
+  if (amount < 0) {
+    resultArea.textContent = "Monto no puede ser negativo";
+    dateArea.textContent = "";
+    return;
+  }
+
+  if (currentMode === "pesosToUdis") {
+    const res = amount / currentUdiValue;
+    resultArea.textContent = res.toLocaleString("es-MX", {
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 4
+    }) + " UDIs";
+  } else {
+    const res = amount * currentUdiValue;
+    resultArea.textContent = res.toLocaleString("es-MX", {
+      style: "currency",
+      currency: "MXN",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  }
+
+  if (currentUdiDate) {
+    dateArea.textContent = `Basado en el valor del ${currentUdiDate}`;
   }
 }
 
@@ -280,7 +362,7 @@ async function updateHistoricalView() {
   try {
     const { sieToken } = await chrome.storage.local.get("sieToken");
     if (!sieToken) throw new Error("Falta el token de la API.");
-    
+
     const historicalData = await fetchHistoricalData(seriesId, sieToken, startDate, endDate);
     $("#historicalTableContainer").style.display = "block";
     renderHistoricalTable(historicalData, config);
@@ -324,4 +406,20 @@ $("#backToList")?.addEventListener("click", () => {
 });
 $("#updateHistory")?.addEventListener("click", updateHistoricalView);
 
+// Calculator events
+$("#calcAmount")?.addEventListener("input", updateCalculator);
+$("#swapMode")?.addEventListener("click", () => {
+  currentMode = (currentMode === "pesosToUdis") ? "udisToPesos" : "pesosToUdis";
+  updateCalculator();
+});
+
 refresh();
+
+// Initialize calculator from cache if available
+chrome.storage.local.get(["cachedUdiValue", "cachedUdiDate"]).then(data => {
+  if (data.cachedUdiValue) {
+    currentUdiValue = data.cachedUdiValue;
+    currentUdiDate = data.cachedUdiDate;
+    updateCalculator();
+  }
+});
