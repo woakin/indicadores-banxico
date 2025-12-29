@@ -10,6 +10,7 @@ let currentMode = "udisToPesos";
 // --- General UI Functions ---
 function showToast(msg, duration = 1500) {
   const toast = $("#toast");
+  if (!toast) return;
   toast.textContent = msg;
   toast.classList.add("show");
   setTimeout(() => toast.classList.remove("show"), duration);
@@ -187,7 +188,13 @@ async function refresh() {
   }
 
   try {
-    const idsCsv = list.map(s => s.id).join(",");
+    let ids = list.map(s => s.id);
+    if (!ids.includes("SP1")) ids.push("SP1");
+    if (!ids.includes("SP68257")) ids.push("SP68257");
+    if (!ids.includes("SF61745")) ids.push("SF61745"); // Tasa Objetivo
+    if (!ids.includes("SP74665")) ids.push("SP74665"); // Inflación General Anual
+
+    const idsCsv = ids.join(",");
     const data = await fetchOportuno(idsCsv, sieToken);
     const byId = new Map((data?.bmx?.series || []).map(s => [s.idSerie, s]));
 
@@ -219,6 +226,31 @@ async function refresh() {
         });
         updateCalculator();
       }
+    }
+
+    // Capture INPC (SP1) for fiscal calculator date limits
+    const inpcSerie = byId.get('SP1') || byId.get('SP30579'); // Fallback to SP30579 if SP1 not in list
+    if (inpcSerie) {
+      const inpcObs = latestValidObservation(inpcSerie.datos);
+      if (inpcObs) {
+        // inpcObs.fecha is dd/mm/yyyy
+        const parts = inpcObs.fecha.split("/");
+        const maxMonth = `${parts[2]}-${parts[1].padStart(2, '0')}`;
+
+        const initialInput = $("#fiscalInitialDate");
+        const finalInput = $("#fiscalFinalDate");
+        if (initialInput) initialInput.max = maxMonth;
+        if (finalInput) finalInput.max = maxMonth;
+
+        await chrome.storage.local.set({ cachedInpcMaxMonth: maxMonth });
+      }
+    }
+
+    // Update Real Rate Monitor (Salud Financiera)
+    const targetRateSerie = byId.get('SF61745');
+    const inflationSerie = byId.get('SP74665');
+    if (targetRateSerie && inflationSerie) {
+      updateRealRateMonitor(targetRateSerie, inflationSerie);
     }
 
     render(rows, false);
@@ -292,6 +324,54 @@ function updateCalculator() {
   if (currentUdiDate) {
     dateArea.textContent = `Basado en el valor del ${currentUdiDate}`;
   }
+}
+
+function updateRealRateMonitor(targetRateSerie, inflationSerie) {
+  const targetObs = latestValidObservation(targetRateSerie.datos);
+  const inflationObs = latestValidObservation(inflationSerie.datos);
+
+  if (!targetObs || !inflationObs) return;
+
+  const nominal = parseFloat(targetObs.dato.replace(",", "."));
+  const inflation = parseFloat(inflationObs.dato.replace(",", "."));
+  const realRate = nominal - inflation;
+
+  const label = $("#realRateLabel");
+  const inflationBar = $("#realRateInflationBar");
+  const profitBar = $("#realRateProfitBar");
+  const inflationVal = $("#nominalInflationValue");
+  const nominalVal = $("#nominalRateValue");
+  const desc = $("#realRateDescription");
+
+  // Update Text
+  const fmt = (v) => v.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%";
+  nominalVal.textContent = fmt(nominal);
+  inflationVal.textContent = fmt(inflation);
+  label.textContent = (realRate >= 0 ? "+" : "") + fmt(realRate) + " Real";
+  label.className = "badge " + (realRate >= 0 ? "positive" : "negative");
+
+  // Update Description
+  if (realRate > 0) {
+    desc.textContent = "¡Tu dinero gana valor! Superas la inflación.";
+  } else if (realRate < 0) {
+    desc.textContent = "Cuidado: La inflación es mayor a la tasa objetivo.";
+  } else {
+    desc.textContent = "Tu dinero mantiene su valor (empate con inflación).";
+  }
+
+  // Update Bar widths
+  // If nominal is 0 or negative (rare), we show 0
+  if (nominal <= 0) {
+    inflationBar.style.width = "100%";
+    profitBar.style.width = "0%";
+    return;
+  }
+
+  const inflationPercent = Math.min(100, Math.max(0, (inflation / nominal) * 100));
+  const profitPercent = Math.max(0, 100 - inflationPercent);
+
+  inflationBar.style.width = `${inflationPercent}%`;
+  profitBar.style.width = `${profitPercent}%`;
 }
 
 // --- Historical View Logic ---
@@ -413,13 +493,109 @@ $("#swapMode")?.addEventListener("click", () => {
   updateCalculator();
 });
 
+// Tab Switching
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    // UI Update
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    // View Switching
+    const target = btn.dataset.target;
+    $("#mainView").style.display = target === "mainView" ? "block" : "none";
+    $("#fiscalView").style.display = target === "fiscalView" ? "block" : "none";
+    $("#historicalView").style.display = "none";
+  });
+});
+
+// Fiscal Calculator
+async function calculateFiscalUpdate() {
+  const amountStr = $("#fiscalAmount").value;
+  const amount = parseFloat(amountStr);
+  const initialMonth = $("#fiscalInitialDate").value; // "YYYY-MM"
+  const finalMonth = $("#fiscalFinalDate").value;     // "YYYY-MM"
+
+  if (isNaN(amount) || !initialMonth || !finalMonth) {
+    showToast("Completa todos los campos");
+    return;
+  }
+
+  const resultContainer = $("#fiscalResultContainer");
+  const factorDisplay = $("#fiscalFactor");
+  const amountDisplay = $("#fiscalUpdatedAmount");
+
+  showToast("Calculando...", 1000);
+  document.body.classList.add("loading");
+  resultContainer.style.display = "none";
+
+  try {
+    const { sieToken } = await chrome.storage.local.get("sieToken");
+    if (!sieToken) throw new Error("Configura tu token SIE");
+
+    // Format dates for API: YYYY-MM-01
+    const startDate = `${initialMonth}-01`;
+    // Use 28th to ensure we capture the month's data regardless of exact day alignment in API
+    const endDate = `${finalMonth}-28`;
+
+    // Fetch INPC (SP1) for both periods
+    const data = await fetchHistoricalData("SP1", sieToken, startDate, endDate);
+
+    // We need specifically the observations for the selected months (mm/yyyy)
+    const findObs = (monthStr) => {
+      const [year, month] = monthStr.split("-").map(Number);
+      return data.find(obs => {
+        // obs.fecha is dd/mm/yyyy
+        const parts = obs.fecha.split("/").map(Number);
+        return parts[1] === month && parts[2] === year;
+      });
+    };
+
+    const obsInitial = findObs(initialMonth);
+    const obsFinal = findObs(finalMonth);
+
+    if (!obsInitial) {
+      throw new Error(`Índice INPC no disponible para ${initialMonth}`);
+    }
+    if (!obsFinal) {
+      throw new Error(`Índice INPC no disponible para ${finalMonth}`);
+    }
+
+    const inpcInitial = parseFloat(obsInitial.dato.replace(",", "."));
+    const inpcFinal = parseFloat(obsFinal.dato.replace(",", "."));
+
+    if (isNaN(inpcInitial) || isNaN(inpcFinal)) {
+      throw new Error("Datos de INPC no válidos (NaN)");
+    }
+
+    const factor = inpcFinal / inpcInitial;
+    const updatedAmount = amount * factor;
+
+    factorDisplay.textContent = factor.toLocaleString("es-MX", { minimumFractionDigits: 4, maximumFractionDigits: 6 });
+    amountDisplay.textContent = updatedAmount.toLocaleString("es-MX", { style: "currency", currency: "MXN" });
+
+    resultContainer.style.display = "block";
+  } catch (e) {
+    showToast(`Error: ${e.message}`, 4000);
+  } finally {
+    document.body.classList.remove("loading");
+  }
+}
+
+$("#calculateFiscal")?.addEventListener("click", calculateFiscalUpdate);
+
 refresh();
 
 // Initialize calculator from cache if available
-chrome.storage.local.get(["cachedUdiValue", "cachedUdiDate"]).then(data => {
+chrome.storage.local.get(["cachedUdiValue", "cachedUdiDate", "cachedInpcMaxMonth"]).then(data => {
   if (data.cachedUdiValue) {
     currentUdiValue = data.cachedUdiValue;
     currentUdiDate = data.cachedUdiDate;
     updateCalculator();
+  }
+  if (data.cachedInpcMaxMonth) {
+    const initialInput = $("#fiscalInitialDate");
+    const finalInput = $("#fiscalFinalDate");
+    if (initialInput) initialInput.max = data.cachedInpcMaxMonth;
+    if (finalInput) finalInput.max = data.cachedInpcMaxMonth;
   }
 });

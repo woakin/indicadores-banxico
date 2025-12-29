@@ -60,6 +60,37 @@ h3 {
     outline-offset: 2px
 }
 
+/* Tabs Styles */
+.tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    background: rgba(15, 23, 42, 0.04);
+    color: var(--fg);
+}
+
+.tab-btn.active {
+    background: var(--accent);
+    color: #fff;
+}
+
 .link {
     color: var(--fg);
     text-decoration: none;
@@ -232,6 +263,87 @@ body.loading .loading {
     color: #dc2626;
     font-size: 0.9em;
     margin-top: 10px;
+}
+
+/* Financial Health Section */
+.financial-health-section {
+    margin-top: 16px;
+    padding: 16px;
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.badge {
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+#realRateLabel.positive {
+    background: #dcfce7;
+    color: #166534;
+}
+
+#realRateLabel.negative {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.real-rate-monitor {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.real-rate-bar-container {
+    height: 24px;
+    background: #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+}
+
+.bar-segment {
+    height: 100%;
+    transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.inflation-bar {
+    background: #f87171;
+    /* Red-400 */
+}
+
+.profit-bar {
+    background: #4ade80;
+    /* Green-400 */
+}
+
+.real-rate-legend {
+    display: flex;
+    justify-content: space-around;
+    font-size: 11px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.dot.inflation {
+    background: #f87171;
+}
+
+.dot.nominal {
+    background: #4ade80;
 }
 
 /* Calculator Styles */

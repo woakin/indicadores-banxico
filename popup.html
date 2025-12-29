@@ -8,6 +8,11 @@
 
 <body>
   <div class="shell">
+    <nav class="tabs">
+      <button class="tab-btn active" data-target="mainView">Indicadores</button>
+      <button class="tab-btn" data-target="fiscalView">Actualización Fiscal</button>
+    </nav>
+
     <div id="mainView">
       <div class="header">
         <div>
@@ -32,6 +37,33 @@
         <tbody id="tbody"></tbody>
       </table>
 
+      <!-- Monitor de Tasa Real (Salud Financiera) -->
+      <div class="financial-health-section">
+        <div class="header" style="margin-bottom: 8px;">
+          <h3>Salud Financiera (Tasa Real)</h3>
+          <span id="realRateLabel" class="badge">--</span>
+        </div>
+        <div class="real-rate-monitor">
+          <div class="real-rate-bar-container">
+            <div id="realRateInflationBar" class="bar-segment inflation-bar"></div>
+            <div id="realRateProfitBar" class="bar-segment profit-bar"></div>
+          </div>
+          <div class="real-rate-legend">
+            <div class="legend-item">
+              <span class="dot inflation"></span>
+              <span>Inflación: <b id="nominalInflationValue">--</b></span>
+            </div>
+            <div class="legend-item">
+              <span class="dot nominal"></span>
+              <span>Tasa Objetivo: <b id="nominalRateValue">--</b></span>
+            </div>
+          </div>
+          <div id="realRateDescription" class="muted" style="text-align: center; font-size: 11px; margin-top: 6px;">
+            Obteniendo datos de inflación...
+          </div>
+        </div>
+      </div>
+
       <div class="calculator-section">
         <h3>Calculadora de UDIs</h3>
         <div class="calc-grid">
@@ -50,10 +82,43 @@
         <div id="calcDate" class="muted" style="text-align:center; margin-top:8px"></div>
       </div>
 
-      <div id="toast" class="toast"></div>
-
       <p class="muted">Fuente: SIE Banxico &middot; <a href="https://alasha.biz" target="_blank"
           class="link">alasha.biz</a></p>
+    </div>
+
+    <div id="fiscalView" style="display:none">
+      <div class="header">
+        <h3>Actualización Fiscal (INPC)</h3>
+      </div>
+      <div class="calculator-section">
+        <div class="calc-field" style="margin-bottom: 12px;">
+          <label for="fiscalAmount">Monto Original</label>
+          <input type="number" id="fiscalAmount" class="calc-input" placeholder="0.00" step="0.01">
+        </div>
+        <div class="calc-grid">
+          <div class="calc-field">
+            <label for="fiscalInitialDate">Mes/Año Inicial</label>
+            <input type="month" id="fiscalInitialDate" class="calc-input">
+          </div>
+          <div class="calc-field">
+            <label for="fiscalFinalDate">Mes/Año Final</label>
+            <input type="month" id="fiscalFinalDate" class="calc-input">
+          </div>
+        </div>
+        <button id="calculateFiscal" class="btn" style="width: 100%; margin-top: 12px;">Calcular Actualización</button>
+
+        <div id="fiscalResultContainer" style="margin-top: 16px; display: none;">
+          <div class="calc-field">
+            <label>Factor de Actualización</label>
+            <div id="fiscalFactor" class="calc-result" style="font-size: 1.1em;">—</div>
+          </div>
+          <div class="calc-field" style="margin-top: 10px;">
+            <label>Monto Actualizado</label>
+            <div id="fiscalUpdatedAmount" class="calc-result" style="color: #059669; font-size: 1.3em;">—</div>
+          </div>
+        </div>
+      </div>
+      <p class="muted">Basado en Serie SP1 (INPC) &middot; Banxico</p>
     </div>
     <div id="historicalView">
       <div id="historicalHeader">
@@ -75,5 +140,9 @@
       </div>
       <div id="historicalError"></div>
     </div>
+    <div id="toast" class="toast"></div>
   </div>
   <script type="module" src="popup.js"></script>
+</body>
+
+</html>
