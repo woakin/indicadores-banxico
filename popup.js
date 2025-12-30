@@ -389,7 +389,6 @@ function updateRealRateMonitor(targetRateSerie, inflationSerie) {
 // --- Historical View (View Switcher) ---
 
 async function showHistoricalView(seriesId, title, config) {
-  const mainView = $("#mainView");
   const historyView = $("#historicalView");
   const tableContainer = $("#historicalTableContainer");
   const errorEl = $("#historicalError");
@@ -397,10 +396,13 @@ async function showHistoricalView(seriesId, title, config) {
   const startInput = $("#historicalStartDate");
   const endInput = $("#historicalEndDate");
 
-  // Switch Views
-  mainView.style.display = "none";
-  historyView.style.display = "block";
-  titleEl.textContent = title;
+  // Switch Views - Hide all possible main views
+  ["marketView", "calculatorsView", "settingsView"].forEach(v => {
+    $(`#${v}`)?.style && ($(`#${v}`).style.display = "none");
+  });
+
+  historyView?.style && (historyView.style.display = "block");
+  if (titleEl) titleEl.textContent = title;
 
   // Clear State
   tableContainer.innerHTML = "";
@@ -454,8 +456,8 @@ async function showHistoricalView(seriesId, title, config) {
 $("#refresh")?.addEventListener("click", () => refresh(true));
 
 $("#backToMain")?.addEventListener("click", () => {
-  $("#historicalView").style.display = "none";
-  $("#marketView").style.display = "block";
+  $("#historicalView")?.style && ($("#historicalView").style.display = "none");
+  $("#marketView")?.style && ($("#marketView").style.display = "block");
 });
 
 $("#openAdvancedSettings")?.addEventListener("click", () => {
@@ -482,10 +484,10 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 
     views.forEach(v => {
       const el = $(`#${v}`);
-      if (el) el.style.display = v === target ? "block" : "none";
+      if (el?.style) el.style.display = v === target ? "block" : "none";
     });
 
-    $("#historicalView").style.display = "none";
+    $("#historicalView")?.style && ($("#historicalView").style.display = "none");
   });
 });
 
@@ -524,7 +526,8 @@ async function calculateFiscalUpdate() {
     const factor = parseFloat(obsF.dato.replace(",", ".")) / parseFloat(obsI.dato.replace(",", "."));
     $("#fiscalFactor").textContent = factor.toFixed(6);
     $("#fiscalUpdatedAmount").textContent = (amount * factor).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
-    $("#fiscalResultContainer").style.display = "grid";
+    const resContainer = $("#fiscalResultContainer");
+    if (resContainer) resContainer.style.display = "grid";
   } catch (e) {
     showToast(e.message);
   } finally {
