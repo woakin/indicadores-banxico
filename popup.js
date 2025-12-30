@@ -1,4 +1,4 @@
-import { DEFAULT_SERIES, BANXICO_API_BASE } from './constants.js';
+import { DEFAULT_SERIES } from './constants.js';
 
 const $ = s => document.querySelector(s);
 
@@ -25,17 +25,7 @@ async function copyToClipboard(text) {
   }
 }
 
-// --- Banxico API & Data Formatting ---
-async function fetchOportuno(idsCsv, token) {
-  const url = `${BANXICO_API_BASE}/series/${idsCsv}/datos?mediaType=json&token=${encodeURIComponent(token)}`;
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) {
-    if (r.status === 401) throw new Error("Token SIE inválido o expirado");
-    if (r.status === 404) throw new Error("Serie no encontrada");
-    throw new Error(`Error HTTP ${r.status}`);
-  }
-  return r.json();
-}
+// --- Data Formatting ---
 
 function fmtValue(cfg, datoStr) {
   if (!datoStr || datoStr === "N/E") return "—";
@@ -86,7 +76,6 @@ function fmtDate(dateStr, periodicity) {
   return date.toLocaleDateString("es-MX", opts);
 }
 
-// Pick the most recent observation that has a numeric value (skip N/E or empty)
 function latestValidObservation(datos) {
   if (!Array.isArray(datos) || datos.length === 0) return undefined;
   for (let i = datos.length - 1; i >= 0; i -= 1) {
@@ -105,7 +94,7 @@ function render(rows, warn = false) {
   for (const r of rows) {
     const tr = document.createElement("tr");
 
-    // Name cell with tooltip
+    // Name cell
     const nameCell = document.createElement("td");
     nameCell.textContent = r.name;
     if (r.description || r.periodicity) {
@@ -118,7 +107,7 @@ function render(rows, warn = false) {
     }
     tr.appendChild(nameCell);
 
-    // Value cell with copy button
+    // Value cell
     const valueCell = document.createElement("td");
     const valueDiv = document.createElement("div");
     valueDiv.className = "value-cell";
@@ -147,10 +136,9 @@ function render(rows, warn = false) {
 
     // Graph button cell
     const graphCell = document.createElement("td");
-    // Only show detail button if there is data for the series
     if (r.date !== "Sin datos" && r.date !== "—") {
       const detailBtn = document.createElement("button");
-      detailBtn.className = "copy-btn"; // Re-use style for a clean look
+      detailBtn.className = "copy-btn";
       detailBtn.textContent = "📈";
       detailBtn.title = "Ver gráfico histórico";
       detailBtn.addEventListener("click", (e) => {
@@ -164,343 +152,219 @@ function render(rows, warn = false) {
   }
 }
 
-async function refresh() {
+async function refresh(force = false) {
   document.body.classList.add("loading");
-  const { sieToken, sieSeries, lastUpdated } = await chrome.storage.local.get(["sieToken", "sieSeries", "lastUpdated"]);
 
-  // Update last updated badge
-  if (lastUpdated) {
+  if (force) {
+    showToast("Actualizando datos...");
+    await chrome.runtime.sendMessage({ type: "REFRESH_DATA" });
+  }
+
+  const { sieToken, sieSeries, lastUpdated, cachedSeriesData } = await chrome.storage.local.get([
+    "sieToken", "sieSeries", "lastUpdated", "cachedSeriesData"
+  ]);
+
+  // Update badge
+  const badge = document.getElementById("lastUpdated");
+  if (lastUpdated && badge) {
     const mins = Math.floor((Date.now() - lastUpdated) / 60000);
-    const label = mins < 1 ? "Hace unos segundos" : mins === 1 ? "Hace 1 minuto" : `Hace ${mins} minutos`;
-    const badge = document.getElementById("lastUpdated");
-    if (badge) badge.textContent = `Actualizado: ${label}`;
+    badge.textContent = `Actualizado: ${mins < 1 ? "Ahora" : "Hace " + mins + " min"}`;
   }
 
   if (!sieToken) {
-    render([{ name: "Configura tu token en Onboarding", value: "—", date: "—" }], true);
+    render([{ name: "Falta configurar Token", value: "—", date: "—" }], true);
     document.body.classList.remove("loading");
     return;
   }
 
-  let list = Array.isArray(sieSeries) ? sieSeries : [];
-  if (list.length === 0) {
-    list = DEFAULT_SERIES;
+  // If no data yet, trigger a refresh and wait
+  if (!cachedSeriesData || cachedSeriesData.length === 0) {
+    const res = await chrome.runtime.sendMessage({ type: "REFRESH_DATA" });
+    if (!res?.success) {
+      render([{ name: "Error al obtener datos", value: "—", date: res?.error || "Error" }], false);
+      document.body.classList.remove("loading");
+      return;
+    }
+    // Call refresh again to load from the now-populated storage
+    return refresh(false);
   }
 
-  try {
-    let ids = list.map(s => s.id);
-    if (!ids.includes("SP1")) ids.push("SP1");
-    if (!ids.includes("SP68257")) ids.push("SP68257");
-    if (!ids.includes("SF61745")) ids.push("SF61745"); // Tasa Objetivo
-    if (!ids.includes("SP74665")) ids.push("SP74665"); // Inflación General Anual
+  const byId = new Map(cachedSeriesData.map(s => [s.idSerie, s]));
+  let list = Array.isArray(sieSeries) ? sieSeries : DEFAULT_SERIES;
 
-    const idsCsv = ids.join(",");
-    const data = await fetchOportuno(idsCsv, sieToken);
-    const byId = new Map((data?.bmx?.series || []).map(s => [s.idSerie, s]));
+  const rows = list.map(cfg => {
+    const s = byId.get(cfg.id);
+    if (!s) return { name: cfg.title || cfg.id, value: "—", date: "Sin datos", config: cfg };
+    const latest = latestValidObservation(s.datos);
+    return {
+      id: cfg.id,
+      name: cfg.title || cfg.id,
+      value: fmtValue(cfg, latest?.dato),
+      date: fmtDate(latest?.fecha, cfg.periodicity),
+      config: cfg
+    };
+  });
 
-    const rows = list.map(cfg => {
-      const s = byId.get(cfg.id);
-      if (!s) {
-        return { name: cfg.title || cfg.id, value: "—", date: "Sin datos", description: cfg.description, periodicity: cfg.periodicity };
-      }
-
-      const datos = Array.isArray(s.datos) ? s.datos : [];
-      const latest = latestValidObservation(datos);
-      const value = fmtValue(cfg, latest?.dato);
-      const date = fmtDate(latest?.fecha, cfg.periodicity);
-      const resolvedDate = latest ? (date || "Sin datos") : "Sin datos";
-      return { id: cfg.id, name: cfg.title || cfg.id, value, date: resolvedDate, description: cfg.description, periodicity: cfg.periodicity, config: cfg };
-    });
-
-    // Capture UDI value for calculator (Serie SP68257)
-    const udiSerie = byId.get('SP68257');
-    if (udiSerie) {
-      const udiObs = latestValidObservation(udiSerie.datos);
-      if (udiObs) {
-        currentUdiValue = Number(udiObs.dato.replace(",", "."));
-        currentUdiDate = fmtDate(udiObs.fecha, "diaria");
-        // Save to storage for persistence
-        await chrome.storage.local.set({
-          cachedUdiValue: currentUdiValue,
-          cachedUdiDate: currentUdiDate
-        });
-        updateCalculator();
-      }
+  // UDI Calculator dependencies
+  const udiSerie = byId.get('SP68257');
+  if (udiSerie) {
+    const udiObs = latestValidObservation(udiSerie.datos);
+    if (udiObs) {
+      currentUdiValue = Number(udiObs.dato.replace(",", "."));
+      currentUdiDate = fmtDate(udiObs.fecha, "diaria");
+      updateCalculator();
     }
-
-    // Capture INPC (SP1) for fiscal calculator date limits
-    const inpcSerie = byId.get('SP1') || byId.get('SP30579'); // Fallback to SP30579 if SP1 not in list
-    if (inpcSerie) {
-      const inpcObs = latestValidObservation(inpcSerie.datos);
-      if (inpcObs) {
-        // inpcObs.fecha is dd/mm/yyyy
-        const parts = inpcObs.fecha.split("/");
-        const maxMonth = `${parts[2]}-${parts[1].padStart(2, '0')}`;
-
-        const initialInput = $("#fiscalInitialDate");
-        const finalInput = $("#fiscalFinalDate");
-        if (initialInput) initialInput.max = maxMonth;
-        if (finalInput) finalInput.max = maxMonth;
-
-        await chrome.storage.local.set({ cachedInpcMaxMonth: maxMonth });
-      }
-    }
-
-    // Update Real Rate Monitor (Salud Financiera)
-    const targetRateSerie = byId.get('SF61745');
-    const inflationSerie = byId.get('SP74665');
-    if (targetRateSerie && inflationSerie) {
-      updateRealRateMonitor(targetRateSerie, inflationSerie);
-    }
-
-    render(rows, false);
-
-    // Save last updated timestamp
-    await chrome.storage.local.set({ lastUpdated: Date.now() });
-  } catch (e) {
-    render(list.map(cfg => ({ name: cfg.title || cfg.id, value: "—", date: `Error: ${e.message}` })), false);
-    $("#calcResult").textContent = "Error al obtener valor UDI";
-  } finally {
-    document.body.classList.remove("loading");
   }
+
+  // INPC / Health dependencies
+  const inpcSerie = byId.get('SP1') || byId.get('SP30579');
+  if (inpcSerie) {
+    const inpcObs = latestValidObservation(inpcSerie.datos);
+    if (inpcObs) {
+      const parts = inpcObs.fecha.split("/");
+      const maxMonth = `${parts[2]}-${parts[1].padStart(2, '0')}`;
+      if ($("#fiscalInitialDate")) $("#fiscalInitialDate").max = maxMonth;
+      if ($("#fiscalFinalDate")) $("#fiscalFinalDate").max = maxMonth;
+    }
+  }
+
+  const targetRateSerie = byId.get('SF61745');
+  const inflationSerie = byId.get('SP74665');
+  if (targetRateSerie && inflationSerie) {
+    updateRealRateMonitor(targetRateSerie, inflationSerie);
+  }
+
+  render(rows, false);
+  document.body.classList.remove("loading");
 }
 
-// --- Calculator Logic ---
+// --- Calculator & Monitor ---
+
 function updateCalculator() {
-  const amountStr = $("#calcAmount").value.trim();
+  const amountStr = $("#calcAmount")?.value.trim() || "";
   const amount = parseFloat(amountStr);
   const resultArea = $("#calcResult");
   const dateArea = $("#calcDate");
   const modeLabel = $("#calcModeLabel");
 
-  if (!currentUdiValue) {
-    resultArea.textContent = "Cargando valor de UDI...";
-    dateArea.textContent = "";
-    return;
-  }
+  if (!currentUdiValue || !resultArea) return;
 
-  // Update Label
-  if (currentMode === "pesosToUdis") {
-    modeLabel.innerHTML = "Pesos &rarr; UDIs";
-  } else {
-    modeLabel.innerHTML = "UDIs &rarr; Pesos";
-  }
+  modeLabel.innerHTML = currentMode === "pesosToUdis" ? "Pesos &rarr; UDIs" : "UDIs &rarr; Pesos";
 
-  // Input validation
   if (amountStr === "") {
     resultArea.textContent = "Ingrese un monto";
-    dateArea.textContent = currentUdiDate ? `Basado en el valor del ${currentUdiDate}` : "";
+    dateArea.textContent = currentUdiDate ? `Valor al ${currentUdiDate}` : "";
     return;
   }
-
-  if (isNaN(amount)) {
+  if (isNaN(amount) || amount < 0) {
     resultArea.textContent = "Monto inválido";
-    dateArea.textContent = "";
-    return;
-  }
-
-  if (amount < 0) {
-    resultArea.textContent = "Monto no puede ser negativo";
-    dateArea.textContent = "";
     return;
   }
 
   if (currentMode === "pesosToUdis") {
     const res = amount / currentUdiValue;
-    resultArea.textContent = res.toLocaleString("es-MX", {
-      minimumFractionDigits: 4,
-      maximumFractionDigits: 4
-    }) + " UDIs";
+    resultArea.textContent = res.toLocaleString("es-MX", { minimumFractionDigits: 4, maximumFractionDigits: 4 }) + " UDIs";
   } else {
     const res = amount * currentUdiValue;
-    resultArea.textContent = res.toLocaleString("es-MX", {
-      style: "currency",
-      currency: "MXN",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+    resultArea.textContent = res.toLocaleString("es-MX", { style: "currency", currency: "MXN" });
   }
-
-  if (currentUdiDate) {
-    dateArea.textContent = `Basado en el valor del ${currentUdiDate}`;
-  }
+  dateArea.textContent = `Valor al ${currentUdiDate}`;
 }
 
 function updateRealRateMonitor(targetRateSerie, inflationSerie) {
   const targetObs = latestValidObservation(targetRateSerie.datos);
   const inflationObs = latestValidObservation(inflationSerie.datos);
-
   if (!targetObs || !inflationObs) return;
 
   const nominal = parseFloat(targetObs.dato.replace(",", "."));
   const inflation = parseFloat(inflationObs.dato.replace(",", "."));
   const realRate = nominal - inflation;
 
-  const label = $("#realRateLabel");
-  const inflationBar = $("#realRateInflationBar");
-  const profitBar = $("#realRateProfitBar");
-  const inflationVal = $("#nominalInflationValue");
-  const nominalVal = $("#nominalRateValue");
-  const desc = $("#realRateDescription");
+  const fmt = (v) => v.toLocaleString("es-MX", { minimumFractionDigits: 2 }) + "%";
+  $("#nominalRateValue").textContent = fmt(nominal);
+  $("#nominalInflationValue").textContent = fmt(inflation);
+  $("#realRateLabel").textContent = (realRate >= 0 ? "+" : "") + fmt(realRate) + " Real";
+  $("#realRateLabel").className = "badge " + (realRate >= 0 ? "positive" : "negative");
 
-  // Update Text
-  const fmt = (v) => v.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%";
-  nominalVal.textContent = fmt(nominal);
-  inflationVal.textContent = fmt(inflation);
-  label.textContent = (realRate >= 0 ? "+" : "") + fmt(realRate) + " Real";
-  label.className = "badge " + (realRate >= 0 ? "positive" : "negative");
+  if (realRate > 0) $("#realRateDescription").textContent = "¡Ganas valor! Superas la inflación.";
+  else if (realRate < 0) $("#realRateDescription").textContent = "Pierdes valor frente a la inflación.";
+  else $("#realRateDescription").textContent = "Mantienes el valor de tu dinero.";
 
-  // Update Description
-  if (realRate > 0) {
-    desc.textContent = "¡Tu dinero gana valor! Superas la inflación.";
-  } else if (realRate < 0) {
-    desc.textContent = "Cuidado: La inflación es mayor a la tasa objetivo.";
-  } else {
-    desc.textContent = "Tu dinero mantiene su valor (empate con inflación).";
-  }
-
-  // Update Bar widths
-  // If nominal is 0 or negative (rare), we show 0
-  if (nominal <= 0) {
-    inflationBar.style.width = "100%";
-    profitBar.style.width = "0%";
-    return;
-  }
-
-  const inflationPercent = Math.min(100, Math.max(0, (inflation / nominal) * 100));
-  const profitPercent = Math.max(0, 100 - inflationPercent);
-
-  inflationBar.style.width = `${inflationPercent}%`;
-  profitBar.style.width = `${profitPercent}%`;
-}
-
-// --- Historical View Logic ---
-
-async function fetchHistoricalData(seriesId, token, startDate, endDate) {
-  const url = `${BANXICO_API_BASE}/series/${seriesId}/datos/${startDate}/${endDate}?mediaType=json&token=${encodeURIComponent(token)}`;
-  const response = await fetch(url, { cache: "no-store" });
-
-  if (!response.ok) {
-    if (response.status === 401) throw new Error("Token SIE inválido o expirado.");
-    if (response.status === 404) throw new Error("No se encontraron datos para este rango de fechas.");
-    throw new Error(`Error en la API de Banxico: ${response.statusText}`);
-  }
-  const data = await response.json();
-  const seriesData = data.bmx?.series?.[0]?.datos;
-  if (!seriesData || seriesData.length === 0) {
-    throw new Error("No se encontraron datos para este rango de fechas.");
-  }
-  return seriesData;
-}
-
-function renderHistoricalTable(data, config) {
-  const container = $("#historicalTableContainer");
-  if (!data || data.length === 0) {
-    container.innerHTML = ""; // Limpiamos por si acaso.
-    return;
-  }
-
-  const table = document.createElement("table");
-  table.innerHTML = `<thead><tr><th>Fecha</th><th>Valor</th></tr></thead>`;
-  const tbody = document.createElement("tbody");
-
-  // Iteramos en reversa para mostrar los más recientes primero
-  for (let i = data.length - 1; i >= 0; i--) {
-    const point = data[i];
-    const tr = document.createElement("tr");
-    const dateCell = document.createElement("td");
-    const valueCell = document.createElement("td");
-
-    dateCell.textContent = fmtDate(point.fecha, config.periodicity);
-    valueCell.textContent = fmtValue(config, point.dato);
-    valueCell.style.textAlign = "right";
-
-    tr.appendChild(dateCell);
-    tr.appendChild(valueCell);
-    tbody.appendChild(tr);
-  }
-
-  table.appendChild(tbody);
-  container.innerHTML = ""; // Limpiar contenido anterior
-  container.appendChild(table);
-}
-
-async function updateHistoricalView() {
-  const view = $("#historicalView");
-  const seriesId = view.dataset.seriesId;
-  const config = JSON.parse(view.dataset.config);
-  const startDate = $("#startDate").value;
-  const endDate = $("#endDate").value;
-
-  document.body.classList.add('loading');
-  $("#historicalError").textContent = "";
-  // Ocultar todos los contenedores de contenido antes de la llamada a la API
-  $("#historicalTableContainer").innerHTML = "";
-  $("#historicalTableContainer").style.display = "none";
-  $("#noDataMessage").style.display = "none";
-
-  try {
-    const { sieToken } = await chrome.storage.local.get("sieToken");
-    if (!sieToken) throw new Error("Falta el token de la API.");
-
-    const historicalData = await fetchHistoricalData(seriesId, sieToken, startDate, endDate);
-    $("#historicalTableContainer").style.display = "block";
-    renderHistoricalTable(historicalData, config);
-  } catch (error) {
-    // Si el error es "No se encontraron datos", mostramos el mensaje amigable.
-    if (error.message.includes("No se encontraron datos")) {
-      $("#noDataMessage").style.display = "block";
-    } else {
-      $("#historicalError").textContent = `Error: ${error.message}`;
-    }
-  } finally {
-    document.body.classList.remove('loading');
+  if (nominal > 0) {
+    const infP = Math.min(100, (inflation / nominal) * 100);
+    $("#realRateInflationBar").style.width = `${infP}%`;
+    $("#realRateProfitBar").style.width = `${Math.max(0, 100 - infP)}%`;
   }
 }
 
-function showHistoricalView(seriesId, seriesTitle, seriesConfig) {
+// --- Historical View ---
+
+async function showHistoricalView(seriesId, title, config) {
   $("#mainView").style.display = "none";
   $("#historicalView").style.display = "block";
+  $("#historicalTitle").textContent = title;
 
-  const view = $("#historicalView");
-  view.dataset.seriesId = seriesId;
-  view.dataset.config = JSON.stringify(seriesConfig); // Guardamos la config para formatear valores
+  const end = new Date();
+  const start = new Date();
+  start.setMonth(end.getMonth() - 1);
+  $("#endDate").value = end.toISOString().slice(0, 10);
+  $("#startDate").value = start.toISOString().slice(0, 10);
 
-  $("#historicalTitle").textContent = seriesTitle;
+  const update = async () => {
+    document.body.classList.add("loading");
+    $("#historicalError").textContent = "";
+    $("#historicalTableContainer").innerHTML = "";
 
-  // Rango de fechas por defecto: último mes
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setMonth(endDate.getMonth() - 1);
-  $("#endDate").value = endDate.toISOString().slice(0, 10);
-  $("#startDate").value = startDate.toISOString().slice(0, 10);
+    try {
+      const resp = await chrome.runtime.sendMessage({
+        type: "FETCH_HISTORICAL",
+        seriesId,
+        startDate: $("#startDate").value,
+        endDate: $("#endDate").value
+      });
 
-  updateHistoricalView();
+      if (!resp.success) throw new Error(resp.error);
+
+      const data = resp.data;
+      const table = document.createElement("table");
+      table.innerHTML = "<thead><tr><th>Fecha</th><th>Valor</th></tr></thead>";
+      const tbody = document.createElement("tbody");
+      for (let i = data.length - 1; i >= 0; i--) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${fmtDate(data[i].fecha, config.periodicity)}</td><td style="text-align:right">${fmtValue(config, data[i].dato)}</td>`;
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      $("#historicalTableContainer").appendChild(table);
+    } catch (e) {
+      $("#historicalError").textContent = e.message;
+    } finally {
+      document.body.classList.remove("loading");
+    }
+  };
+
+  $("#updateHistory").onclick = update;
+  update();
 }
 
-// --- Event Listeners ---
-$("#refresh")?.addEventListener("click", refresh);
+// --- Events ---
+
+$("#refresh")?.addEventListener("click", () => refresh(true));
 $("#backToList")?.addEventListener("click", () => {
   $("#historicalView").style.display = "none";
   $("#mainView").style.display = "block";
 });
-$("#updateHistory")?.addEventListener("click", updateHistoricalView);
 
-// Calculator events
 $("#calcAmount")?.addEventListener("input", updateCalculator);
 $("#swapMode")?.addEventListener("click", () => {
   currentMode = (currentMode === "pesosToUdis") ? "udisToPesos" : "pesosToUdis";
   updateCalculator();
 });
 
-// Tab Switching
 document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
-    // UI Update
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
-
-    // View Switching
     const target = btn.dataset.target;
     $("#mainView").style.display = target === "mainView" ? "block" : "none";
     $("#fiscalView").style.display = target === "fiscalView" ? "block" : "none";
@@ -508,74 +372,44 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
   });
 });
 
-// Fiscal Calculator
 async function calculateFiscalUpdate() {
-  const amountStr = $("#fiscalAmount").value;
-  const amount = parseFloat(amountStr);
-  const initialMonth = $("#fiscalInitialDate").value; // "YYYY-MM"
-  const finalMonth = $("#fiscalFinalDate").value;     // "YYYY-MM"
+  const amount = parseFloat($("#fiscalAmount").value);
+  const startM = $("#fiscalInitialDate").value;
+  const endM = $("#fiscalFinalDate").value;
 
-  if (isNaN(amount) || !initialMonth || !finalMonth) {
-    showToast("Completa todos los campos");
-    return;
-  }
+  if (isNaN(amount) || !startM || !endM) return showToast("Completa los campos");
 
-  const resultContainer = $("#fiscalResultContainer");
-  const factorDisplay = $("#fiscalFactor");
-  const amountDisplay = $("#fiscalUpdatedAmount");
-
-  showToast("Calculando...", 1000);
+  showToast("Calculando...");
   document.body.classList.add("loading");
-  resultContainer.style.display = "none";
 
   try {
-    const { sieToken } = await chrome.storage.local.get("sieToken");
-    if (!sieToken) throw new Error("Configura tu token SIE");
+    const range = await chrome.runtime.sendMessage({
+      type: "FETCH_HISTORICAL",
+      seriesId: "SP1",
+      startDate: `${startM}-01`,
+      endDate: `${endM}-28`
+    });
 
-    // Format dates for API: YYYY-MM-01
-    const startDate = `${initialMonth}-01`;
-    // Use 28th to ensure we capture the month's data regardless of exact day alignment in API
-    const endDate = `${finalMonth}-28`;
+    if (!range.success) throw new Error(range.error);
 
-    // Fetch INPC (SP1) for both periods
-    const data = await fetchHistoricalData("SP1", sieToken, startDate, endDate);
-
-    // We need specifically the observations for the selected months (mm/yyyy)
-    const findObs = (monthStr) => {
-      const [year, month] = monthStr.split("-").map(Number);
-      return data.find(obs => {
-        // obs.fecha is dd/mm/yyyy
-        const parts = obs.fecha.split("/").map(Number);
-        return parts[1] === month && parts[2] === year;
+    const find = (m) => {
+      const [y, mm] = m.split("-").map(Number);
+      return range.data.find(o => {
+        const p = o.fecha.split("/").map(Number);
+        return p[1] === mm && p[2] === y;
       });
     };
 
-    const obsInitial = findObs(initialMonth);
-    const obsFinal = findObs(finalMonth);
+    const obsI = find(startM);
+    const obsF = find(endM);
+    if (!obsI || !obsF) throw new Error("Índice no disponible para el periodo");
 
-    if (!obsInitial) {
-      throw new Error(`Índice INPC no disponible para ${initialMonth}`);
-    }
-    if (!obsFinal) {
-      throw new Error(`Índice INPC no disponible para ${finalMonth}`);
-    }
-
-    const inpcInitial = parseFloat(obsInitial.dato.replace(",", "."));
-    const inpcFinal = parseFloat(obsFinal.dato.replace(",", "."));
-
-    if (isNaN(inpcInitial) || isNaN(inpcFinal)) {
-      throw new Error("Datos de INPC no válidos (NaN)");
-    }
-
-    const factor = inpcFinal / inpcInitial;
-    const updatedAmount = amount * factor;
-
-    factorDisplay.textContent = factor.toLocaleString("es-MX", { minimumFractionDigits: 4, maximumFractionDigits: 6 });
-    amountDisplay.textContent = updatedAmount.toLocaleString("es-MX", { style: "currency", currency: "MXN" });
-
-    resultContainer.style.display = "block";
+    const factor = parseFloat(obsF.dato.replace(",", ".")) / parseFloat(obsI.dato.replace(",", "."));
+    $("#fiscalFactor").textContent = factor.toFixed(6);
+    $("#fiscalUpdatedAmount").textContent = (amount * factor).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
+    $("#fiscalResultContainer").style.display = "block";
   } catch (e) {
-    showToast(`Error: ${e.message}`, 4000);
+    showToast(e.message);
   } finally {
     document.body.classList.remove("loading");
   }
@@ -583,19 +417,5 @@ async function calculateFiscalUpdate() {
 
 $("#calculateFiscal")?.addEventListener("click", calculateFiscalUpdate);
 
+// Initial Load
 refresh();
-
-// Initialize calculator from cache if available
-chrome.storage.local.get(["cachedUdiValue", "cachedUdiDate", "cachedInpcMaxMonth"]).then(data => {
-  if (data.cachedUdiValue) {
-    currentUdiValue = data.cachedUdiValue;
-    currentUdiDate = data.cachedUdiDate;
-    updateCalculator();
-  }
-  if (data.cachedInpcMaxMonth) {
-    const initialInput = $("#fiscalInitialDate");
-    const finalInput = $("#fiscalFinalDate");
-    if (initialInput) initialInput.max = data.cachedInpcMaxMonth;
-    if (finalInput) finalInput.max = data.cachedInpcMaxMonth;
-  }
-});
