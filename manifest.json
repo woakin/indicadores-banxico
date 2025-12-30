@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Indicadores Banxico (SIE)",
-  "version": "2.5.0",
-  "description": "Consulta rápida de series del SIE de Banxico con selección y formateo.",
+  "version": "3.0",
+  "description": "Datos oficiales de Banxico, calculadora de UDIs, actualización fiscal (INPC) y alertas de volatilidad en tiempo real.",
   "action": {
     "default_popup": "popup.html"
   },
