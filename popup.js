@@ -1,10 +1,11 @@
-import { DEFAULT_SERIES } from './constants.js';
+import { DEFAULT_SERIES, ANALYSIS_SERIES } from './constants.js';
 
 const $ = s => document.querySelector(s);
 
 let currentUdiValue = null;
 let currentUdiDate = null;
 let currentMode = "udisToPesos";
+let activeTabId = "marketView";
 
 
 // --- General UI Functions ---
@@ -16,10 +17,13 @@ function showToast(msg, duration = 1500) {
   setTimeout(() => toast.classList.remove("show"), duration);
 }
 
-async function copyToClipboard(text) {
+async function copyToClipboard(val, date) {
   try {
+    // Excel-Ready: [VALOR]\t[FECHA], clean symbols
+    const cleanVal = val.replace(/[$,%]/g, "").replace(/\s/g, "");
+    const text = `${cleanVal}\t${date}`;
     await navigator.clipboard.writeText(text);
-    showToast("Copiado");
+    showToast("Excel-Ready: " + cleanVal);
   } catch (e) {
     showToast("Error al copiar");
   }
@@ -29,42 +33,65 @@ async function copyToClipboard(text) {
 
 function fmtValue(cfg, datoStr) {
   if (!datoStr || datoStr === "N/E") return "—";
-  const x = Number(datoStr.replace(",", "."));
+  // Robust cleaning: remove everything except numbers, dots and minus sign
+  const cleanStr = datoStr.replace(/[^0-9.-]/g, "");
+  const x = Number(cleanStr);
   if (!isFinite(x)) return datoStr;
+
+  const d = cfg.decimals !== undefined ? cfg.decimals : 2;
 
   if (cfg.type === "currency") {
     return x.toLocaleString("es-MX", {
       style: "currency",
       currency: cfg.currency || "MXN",
-      minimumFractionDigits: cfg.decimals ?? 2,
-      maximumFractionDigits: cfg.decimals ?? 4
+      minimumFractionDigits: d,
+      maximumFractionDigits: d
     });
   }
   if (cfg.type === "percent") {
     return (x / 100).toLocaleString("es-MX", {
       style: "percent",
-      minimumFractionDigits: cfg.decimals ?? 2,
-      maximumFractionDigits: cfg.decimals ?? 4
+      minimumFractionDigits: d,
+      maximumFractionDigits: d
     });
   }
   return x.toLocaleString("es-MX", {
-    minimumFractionDigits: cfg.decimals ?? 0,
-    maximumFractionDigits: cfg.decimals ?? 6
+    minimumFractionDigits: d,
+    maximumFractionDigits: d
   });
 }
 
 function fmtDate(dateStr, periodicity) {
   if (!dateStr || dateStr === "—") return "—";
 
+  const parts = dateStr.split("/");
+  const months = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+  if (periodicity === "Mensual" || periodicity === "Quincenal") {
+    // Handling MM/YYYY or DD/MM/YYYY
+    if (parts.length === 2) { // MM/YYYY
+      const monthIndex = parseInt(parts[0]) - 1;
+      if (monthIndex >= 0 && monthIndex < 12) {
+        return `${months[monthIndex]} ${parts[1]}`;
+      }
+    } else if (parts.length === 3) { // DD/MM/YYYY
+      const monthIndex = parseInt(parts[1]) - 1;
+      if (monthIndex >= 0 && monthIndex < 12) {
+        return `${months[monthIndex]} ${parts[2]}`;
+      }
+    }
+  }
+
+  // Fallback to original logic for other formats or if periodicity doesn't match
   let date;
-  if (dateStr.match(/^\d{2}\/\d{4}$/)) {
+  if (dateStr.match(/^\d{2}\/\d{4}$/)) { // MM/YYYY
     const [month, year] = dateStr.split('/');
     date = new Date(parseInt(year), parseInt(month) - 1, 1);
-  } else if (dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+  } else if (dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) { // DD/MM/YYYY
     const [day, month, year] = dateStr.split('/');
     date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
   } else {
-    return dateStr;
+    return dateStr; // Return original string if no match
   }
 
   if (isNaN(date.getTime())) return "—";
@@ -88,11 +115,19 @@ function latestValidObservation(datos) {
 
 // --- Main View Rendering ---
 
-function render(rows, warn = false) {
+function render(rows, containerOrWarn = false) {
+  let container = $("#indicatorCards");
+  let warn = false;
+
+  if (containerOrWarn instanceof HTMLElement) {
+    container = containerOrWarn;
+  } else {
+    warn = !!containerOrWarn;
+  }
+
   const warningEl = $("#warning");
   if (warningEl) warningEl.style.display = warn ? "block" : "none";
 
-  const container = $("#indicatorCards");
   if (!container) return;
   container.innerHTML = "";
 
@@ -100,6 +135,12 @@ function render(rows, warn = false) {
     container.innerHTML = '<p class="muted" style="text-align:center">No hay indicadores seleccionados.</p>';
     return;
   }
+
+  const parseDmx = (d) => {
+    if (!d || typeof d !== 'string') return new Date(0);
+    const p = d.split("/");
+    return p.length === 3 ? new Date(p[2], p[1] - 1, p[0]) : new Date(p[1], p[0] - 1, 1);
+  };
 
   for (const r of rows) {
     const card = document.createElement("div");
@@ -113,8 +154,6 @@ function render(rows, warn = false) {
     title.className = "card-title";
     title.textContent = r.name;
     if (r.config?.description) {
-      title.style.borderBottom = "1px dotted var(--border)";
-      title.style.cursor = "help";
       title.title = r.config.description;
     }
 
@@ -126,14 +165,55 @@ function render(rows, warn = false) {
     info.appendChild(date);
     card.appendChild(info);
 
-    // Right side: Value and Actions
+    // Right side: Value, Variation, Actions
     const data = document.createElement("div");
     data.className = "card-data";
 
+    const valueRow = document.createElement("div");
+    valueRow.style.display = "flex";
+    valueRow.style.alignItems = "center";
+    valueRow.style.gap = "8px";
+
     const value = document.createElement("div");
     value.className = "card-value";
+    value.style.fontFamily = "'Manrope', sans-serif";
+    value.style.fontWeight = "700";
     value.textContent = r.value;
-    data.appendChild(value);
+
+    // Volatility Badge
+    if (r.val && r.prev && r.date && r.prevDate) {
+      try {
+        const v1 = parseFloat(r.val.replace(",", "."));
+        const v2 = parseFloat(r.prev.replace(",", "."));
+        const delta = ((v1 - v2) / v2) * 100;
+
+        const badge = document.createElement("span");
+        badge.className = "variation-badge";
+
+        const d1 = parseDmx(r.date);
+        const d2 = parseDmx(r.prevDate);
+        const diffDays = Math.abs(d1 - d2) / (1000 * 60 * 60 * 24);
+
+        let labelText = "vs cierre";
+        if (diffDays > 25) labelText = "anualizada";
+        else if (diffDays > 3) labelText = "sem ant.";
+
+        const icon = delta > 0 ? "↑" : delta < 0 ? "↓" : "";
+        const color = delta > 0 ? "var(--secondary)" : delta < 0 ? "var(--destructive)" : "var(--text-muted)";
+
+        badge.style.color = color;
+        badge.innerHTML = `${icon} ${Math.abs(delta).toFixed(2)}% <small style="opacity:0.7; font-weight:400; margin-left:2px">${labelText}</small>`;
+        valueRow.appendChild(value);
+        valueRow.appendChild(badge);
+      } catch (err) {
+        console.warn("[Popup] Variation calculation failed:", err);
+        valueRow.appendChild(value);
+      }
+    } else {
+      valueRow.appendChild(value);
+    }
+
+    data.appendChild(valueRow);
 
     const actions = document.createElement("div");
     actions.className = "card-actions";
@@ -141,10 +221,10 @@ function render(rows, warn = false) {
     const copyBtn = document.createElement("button");
     copyBtn.className = "icon-btn";
     copyBtn.innerHTML = "📋";
-    copyBtn.title = "Copiar valor";
+    copyBtn.title = "Copiar Excel-Ready ([VALOR]\\t[FECHA])";
     copyBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      copyToClipboard(r.value);
+      copyToClipboard(r.value, r.date);
     });
 
     actions.appendChild(copyBtn);
@@ -153,7 +233,7 @@ function render(rows, warn = false) {
       const graphBtn = document.createElement("button");
       graphBtn.className = "icon-btn";
       graphBtn.innerHTML = "📈";
-      graphBtn.title = "Ver gráfico histórico";
+      graphBtn.title = "Ver historial";
       graphBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         showHistoricalView(r.id, r.name, r.config);
@@ -161,26 +241,62 @@ function render(rows, warn = false) {
       actions.appendChild(graphBtn);
     }
 
+    actions.style.marginTop = "4px";
     data.appendChild(actions);
     card.appendChild(data);
-
     container.appendChild(card);
   }
 }
 
 async function refresh(force = false) {
-  document.body.classList.add("loading");
-
-  if (force) {
-    showToast("Actualizando datos...");
-    await chrome.runtime.sendMessage({ type: "REFRESH_DATA" });
-  }
+  // Silent refresh doesn't show the full body loader
+  if (force) document.body.classList.add("loading");
 
   const storage = await chrome.storage.local.get([
     "sieToken", "sieSeries", "lastUpdated", "cachedSeriesData"
   ]);
   const { sieToken, sieSeries, lastUpdated, cachedSeriesData } = storage;
-  console.log("[Popup] Storage retrieved:", { hasToken: !!sieToken, seriesCount: cachedSeriesData?.length });
+
+  // 1. Initial configuration check
+  if (!sieToken) {
+    render([{ name: "Falta configurar Token", value: "—", date: "—" }], true);
+    document.body.classList.remove("loading");
+    return;
+  }
+
+  // 2. Immediate Render from Cache (if available)
+  if (cachedSeriesData && cachedSeriesData.length > 0) {
+    console.log("[Popup] Rendering from cache...");
+    renderData(cachedSeriesData, sieSeries, lastUpdated);
+
+    // Check Age for Silent Update (1 hour = 3600000ms)
+    const isStale = lastUpdated && (Date.now() - lastUpdated > 3600000);
+    if (isStale && !force) {
+      console.log("[Popup] Cache is stale, triggering silent refresh...");
+      chrome.runtime.sendMessage({ type: "REFRESH_DATA" });
+    }
+  } else {
+    // No data at all, force a visible refresh
+    console.log("[Popup] No cached data, forcing initial refresh...");
+    if (!force) return refresh(true);
+  }
+
+  // Mandatory series check for old formats or missing critical data
+  const mandatory = ["SP68257", "SF61745", "SP74665", "SP30579", "SR14447", "SR14138", "SR17692", "SE27803", "SF43783"];
+  const byId = new Map(cachedSeriesData?.map(s => [s.id, s]) || []);
+  const hasAllMandatory = mandatory.every(id => byId.has(id));
+  const isOldFormat = cachedSeriesData?.some(s => s.idSerie && !s.id);
+
+  if (!force && (isOldFormat || !hasAllMandatory)) {
+    console.warn("[Popup] Missing mandatory data or old format. Forcing refresh...");
+    return refresh(true);
+  }
+
+  document.body.classList.remove("loading");
+}
+
+function renderData(cachedSeriesData, sieSeries, lastUpdated) {
+  const byId = new Map(cachedSeriesData.map(s => [s.id, s]));
 
   // Update badge
   const badge = document.getElementById("lastUpdated");
@@ -189,81 +305,112 @@ async function refresh(force = false) {
     badge.textContent = `Actualizado: ${mins < 1 ? "Ahora" : "Hace " + mins + " min"}`;
   }
 
-  if (!sieToken) {
-    render([{ name: "Falta configurar Token", value: "—", date: "—" }], true);
-    document.body.classList.remove("loading");
-    return;
-  }
-
-  // If no data yet, trigger a refresh and wait
-  if (!cachedSeriesData || cachedSeriesData.length === 0) {
-    console.log("[Popup] No cached data found, requesting refresh...");
-    const res = await chrome.runtime.sendMessage({ type: "REFRESH_DATA" });
-    if (!res?.success) {
-      console.error("[Popup] Refresh request failed:", res?.error);
-      render([{ name: "Error al obtener datos", value: "—", date: res?.error || "Error desconocido" }], false);
-      document.body.classList.remove("loading");
-      return;
-    }
-    console.log("[Popup] Refresh successful, retrying load...");
-    // Call refresh again to load from the now-populated storage
-    return refresh(false);
-  }
-
-  console.log("[Popup] Loading data from storage:", cachedSeriesData.length, "series.");
-  if (cachedSeriesData.length > 0) console.log("[Popup] First cached item sample:", JSON.stringify(cachedSeriesData[0]));
-
-  const byId = new Map();
-  cachedSeriesData.forEach(s => {
-    if (s.idSerie) byId.set(s.idSerie, s);
+  // Synchronization: Merge storage data with latest DEFAULT_SERIES metadata
+  let list = (Array.isArray(sieSeries) ? sieSeries : DEFAULT_SERIES).map(s => {
+    const latest = DEFAULT_SERIES.find(d => d.id === s.id);
+    return latest ? { ...s, ...latest } : s;
   });
-  let list = Array.isArray(sieSeries) ? sieSeries : DEFAULT_SERIES;
 
   const rows = list.map(cfg => {
     const s = byId.get(cfg.id);
     if (!s) return { name: cfg.title || cfg.id, value: "—", date: "Sin datos", config: cfg };
-    const latest = latestValidObservation(s.datos);
+
     return {
       id: cfg.id,
-      name: cfg.title || cfg.id,
-      value: fmtValue(cfg, latest?.dato),
-      date: fmtDate(latest?.fecha, cfg.periodicity),
+      name: cfg.title || s.title || cfg.id,
+      value: fmtValue(cfg, s.val),
+      date: fmtDate(s.date, cfg.periodicity),
+      val: s.val,
+      prev: s.prev,
+      prevDate: s.prevDate,
       config: cfg
     };
   });
 
   // UDI Calculator dependencies
   const udiSerie = byId.get('SP68257');
-  if (udiSerie) {
-    const udiObs = latestValidObservation(udiSerie.datos);
-    if (udiObs) {
-      currentUdiValue = Number(udiObs.dato.replace(",", "."));
-      currentUdiDate = fmtDate(udiObs.fecha, "diaria");
-      updateCalculator();
-    }
+  if (udiSerie && udiSerie.val) {
+    currentUdiValue = Number(udiSerie.val.replace(",", "."));
+    currentUdiDate = fmtDate(udiSerie.date, "diaria");
+    updateCalculator();
   }
 
   // INPC / Health dependencies
-  const inpcSerie = byId.get('SP1') || byId.get('SP30579');
-  if (inpcSerie) {
-    const inpcObs = latestValidObservation(inpcSerie.datos);
-    if (inpcObs) {
-      const parts = inpcObs.fecha.split("/");
-      const maxMonth = `${parts[2]}-${parts[1].padStart(2, '0')}`;
-      if ($("#fiscalInitialDate")) $("#fiscalInitialDate").max = maxMonth;
-      if ($("#fiscalFinalDate")) $("#fiscalFinalDate").max = maxMonth;
-    }
-  }
-
   const targetRateSerie = byId.get('SF61745');
   const inflationSerie = byId.get('SP74665');
-  if (targetRateSerie && inflationSerie) {
-    updateRealRateMonitor(targetRateSerie, inflationSerie);
+  const cetesSerie = byId.get('SF60633');
+  const tiieSerie = byId.get('SF43783');
+
+  if (targetRateSerie && targetRateSerie.val && inflationSerie && inflationSerie.val) {
+    updateRealRateMonitor(targetRateSerie, inflationSerie, cetesSerie, tiieSerie);
+  } else {
+    const label = $("#realRateLabel");
+    if (label) label.textContent = "Cargando...";
   }
 
-  render(rows, false);
-  document.body.classList.remove("loading");
+  render(rows, $("#indicatorCards"));
+
+  // --- Rendering Analysis Tab ---
+  const expectationsList = ANALYSIS_SERIES.filter(s => s.category === "expectation");
+  const macroList = ANALYSIS_SERIES.filter(s => s.category === "macro");
+
+  const renderAnalysisSection = (list, containerId) => {
+    const analysisRows = list.map(cfg => {
+      const s = byId.get(cfg.id);
+      return {
+        id: cfg.id,
+        name: cfg.title,
+        value: s ? fmtValue(cfg, s.val) : "Sin datos",
+        date: s ? fmtDate(s.date, cfg.periodicity) : "—",
+        val: s?.val,
+        prev: s?.prev,
+        prevDate: s?.prevDate,
+        config: cfg
+      };
+    });
+    render(analysisRows, $(containerId));
+  };
+
+  renderAnalysisSection(expectationsList, "#expectationsCards");
+  renderAnalysisSection(macroList, "#macroCards");
+
+  // --- Inflation vs Expectations Comparison ---
+  const currentInfl = byId.get('SP74665');
+  const expectedInfl = byId.get('SR14138');
+  const warningEl = $("#inflationWarning");
+
+  if (currentInfl?.val && expectedInfl?.val && warningEl) {
+    const cVal = parseFloat(currentInfl.val.replace(",", "."));
+    const eVal = parseFloat(expectedInfl.val.replace(",", "."));
+
+    if (cVal > eVal) {
+      warningEl.style.display = "block";
+      warningEl.innerHTML = `⚠️ <strong>Dato actual (${cVal.toFixed(2)}%)</strong> por encima del consenso de cierre (${eVal.toFixed(2)}%)`;
+    } else {
+      warningEl.style.display = "none";
+    }
+  }
 }
+
+// Global state for anti-flicker
+let lastRenderedHash = "";
+
+// Reactive Data Link
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.cachedSeriesData) {
+    const newData = changes.cachedSeriesData.newValue;
+    const newHash = JSON.stringify(newData);
+
+    // Only re-render if data actually changed
+    if (newHash !== lastRenderedHash) {
+      console.log("[Popup] Cache updated, silent re-render...");
+      lastRenderedHash = newHash;
+      chrome.storage.local.get(["sieSeries", "lastUpdated"]).then(s => {
+        renderData(newData, s.sieSeries, s.lastUpdated);
+      });
+    }
+  }
+});
 
 // --- Calculator & Monitor ---
 
@@ -282,6 +429,12 @@ function updateCalculator() {
     resultArea.textContent = "El resultado aparecerá aquí";
     resultArea.classList.add("placeholder");
     dateArea.textContent = currentUdiDate ? `Valor al ${currentUdiDate}` : "";
+    return;
+  }
+  if (!currentUdiValue || isNaN(currentUdiValue)) {
+    resultArea.textContent = "Obteniendo valor UDI...";
+    resultArea.classList.add("placeholder");
+    dateArea.textContent = "";
     return;
   }
   if (isNaN(amount) || amount < 0) {
@@ -333,14 +486,31 @@ function calculateRealRate(nominal, inflation) {
   return (((1 + (nominal / 100)) / (1 + (inflation / 100))) - 1) * 100;
 }
 
-function updateRealRateMonitor(targetRateSerie, inflationSerie) {
-  const targetObs = latestValidObservation(targetRateSerie.datos);
-  const inflationObs = latestValidObservation(inflationSerie.datos);
-  if (!targetObs || !inflationObs) return;
-
-  const nominal = parseFloat(targetObs.dato.replace(",", "."));
-  const inflation = parseFloat(inflationObs.dato.replace(",", "."));
+function updateRealRateMonitor(targetRateSerie, inflationSerie, cetesSerie, tiieSerie) {
+  const nominal = parseFloat(targetRateSerie.val.replace(",", "."));
+  const inflation = parseFloat(inflationSerie.val.replace(",", "."));
   const realRate = calculateRealRate(nominal, inflation);
+
+  // Spread CETES
+  if (cetesSerie && cetesSerie.val) {
+    const cetes = parseFloat(cetesSerie.val.replace(",", "."));
+    const spread = cetes - nominal;
+    const spreadEl = $("#cetesSpread");
+    if (spreadEl) {
+      spreadEl.textContent = `CETES vs Obj: ${spread > 0 ? "+" : ""}${spread.toFixed(2)}%`;
+    }
+  }
+
+  // Spread TIIE
+  if (tiieSerie && tiieSerie.val) {
+    const tiie = parseFloat(tiieSerie.val.replace(",", "."));
+    const spread = tiie - nominal;
+    const spreadEl = $("#tiieSpread");
+    if (spreadEl) {
+      const warning = spread > 0.50 ? ' <span title="Spread inusualmente alto (>0.50%)" style="cursor:help">⚠️</span>' : '';
+      spreadEl.innerHTML = `TIIE vs Objetivo: ${spread > 0 ? "+" : ""}${spread.toFixed(2)}%${warning}`;
+    }
+  }
 
   const fmt = (v) => v.toLocaleString("es-MX", { minimumFractionDigits: 2 }) + "%";
   $("#inflLabel").textContent = `Inflación: ${fmt(inflation)}`;
@@ -397,7 +567,7 @@ async function showHistoricalView(seriesId, title, config) {
   const endInput = $("#historicalEndDate");
 
   // Switch Views - Hide all possible main views
-  ["marketView", "calculatorsView", "settingsView"].forEach(v => {
+  ["marketView", "analysisView", "calculatorsView", "settingsView"].forEach(v => {
     $(`#${v}`)?.style && ($(`#${v}`).style.display = "none");
   });
 
@@ -415,10 +585,42 @@ async function showHistoricalView(seriesId, title, config) {
   startInput.value = start.toISOString().slice(0, 10);
   endInput.value = end.toISOString().slice(0, 10);
 
+  $("#exportCsv").onclick = () => {
+    const data = $("#exportCsv")._data;
+    if (!data) return;
+
+    // Excel compatibility: use semicolon or comma? US systems usually comma.
+    // However, Mexican systems often use semicolon.
+    // We'll stick to comma but ensure values are clean.
+    const csvRows = [["Fecha", "Valor"]];
+    data.forEach(obs => {
+      // Remove % and quotes for safety
+      const cleanVal = obs.dato.replace(/[%,]/g, "");
+      csvRows.push([obs.fecha, cleanVal]);
+    });
+
+    const csvContent = "\ufeff" + csvRows.map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    const safeTitle = title.replace(/[^a-z0-9]/gi, "_");
+    const today = new Date().toISOString().slice(0, 10);
+
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Historico_${safeTitle}_${today}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("CSV Exportado");
+  };
+
   const update = async () => {
     document.body.classList.add("loading");
     errorEl.textContent = "";
     tableContainer.innerHTML = "";
+    $("#exportCsv").style.display = "none";
+    $("#exportCsv")._data = null;
 
     try {
       const resp = await chrome.runtime.sendMessage({
@@ -429,6 +631,10 @@ async function showHistoricalView(seriesId, title, config) {
       });
 
       if (!resp.success) throw new Error(resp.error);
+
+      // Store data for export
+      $("#exportCsv")._data = resp.data;
+      $("#exportCsv").style.display = "inline-flex";
 
       const table = document.createElement("table");
       table.innerHTML = "<thead><tr><th>Fecha</th><th style='text-align:right'>Valor</th></tr></thead>";
@@ -457,7 +663,7 @@ $("#refresh")?.addEventListener("click", () => refresh(true));
 
 $("#backToMain")?.addEventListener("click", () => {
   $("#historicalView")?.style && ($("#historicalView").style.display = "none");
-  $("#marketView")?.style && ($("#marketView").style.display = "block");
+  $(`#${activeTabId}`)?.style && ($(`#${activeTabId}`).style.display = "block");
 });
 
 $("#openAdvancedSettings")?.addEventListener("click", () => {
@@ -475,12 +681,13 @@ $("#swapMode")?.addEventListener("click", () => {
   saveCalculatorState();
 });
 
-const views = ["marketView", "calculatorsView", "settingsView"];
+const views = ["marketView", "analysisView", "calculatorsView", "settingsView"];
 document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     const target = btn.dataset.target;
+    activeTabId = target;
 
     views.forEach(v => {
       const el = $(`#${v}`);
@@ -540,3 +747,15 @@ $("#calculateFiscal")?.addEventListener("click", calculateFiscalUpdate);
 // Initial Load
 loadCalculatorState();
 refresh();
+
+// Settings Persistence
+chrome.storage.local.get("volatThreshold").then(({ volatThreshold = 0.5 }) => {
+  const el = $("#volatThreshold");
+  if (el) el.value = volatThreshold;
+});
+
+$("#volatThreshold")?.addEventListener("change", (e) => {
+  const val = parseFloat(e.target.value) || 0.5;
+  chrome.storage.local.set({ volatThreshold: val });
+  showToast("Umbral actualizado");
+});

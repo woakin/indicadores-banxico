@@ -119,11 +119,40 @@ h3 {
     margin-bottom: 12px;
 }
 
+.section.health-section {
+    padding-top: 12px;
+    padding-bottom: 12px;
+}
+
 .section-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 12px;
+}
+
+.header-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.spread-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.spread-tag {
+    font-family: 'Manrope', sans-serif;
+    font-size: 10px;
+    color: var(--text-muted);
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--muted);
+    white-space: nowrap;
 }
 
 /* Indicator Cards */
@@ -214,6 +243,20 @@ h3 {
     filter: brightness(1.1);
 }
 
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--primary);
+    box-shadow: none;
+}
+
+.btn-outline:hover {
+    background: var(--muted);
+    border-color: var(--primary);
+    box-shadow: var(--shadow-sm);
+    color: var(--primary);
+}
+
 .icon-btn {
     background: var(--muted);
     border: none;
@@ -235,34 +278,22 @@ h3 {
     transform: scale(1.1);
 }
 
-/* Salud Financiera Widget */
 .real-rate-monitor {
-    position: relative;
-    padding-top: 25px;
-    margin-top: 10px;
+    margin-top: 8px;
 }
 
 .label-container {
-    position: absolute;
-    top: 0;
-    width: 100%;
     display: flex;
     justify-content: space-between;
-    font-size: 10px;
+    margin-bottom: 6px;
+    width: 100%;
+}
+
+.label-item {
     font-family: 'Manrope', sans-serif;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
+    font-size: 11px;
+    font-weight: 600;
     color: var(--text-muted);
-}
-
-.label-item.red {
-    color: #94A3B8;
-}
-
-/* Muted for labels */
-.label-item.green {
-    color: #94A3B8;
 }
 
 .real-rate-bar-container {
@@ -287,7 +318,7 @@ h3 {
 }
 
 #realRateDescription {
-    margin-top: 12px;
+    margin-top: 8px;
     text-align: center;
     font-weight: 600;
     font-size: 13px;
@@ -300,6 +331,19 @@ h3 {
     text-align: center;
     margin-top: 4px;
     font-style: italic;
+    opacity: 0.8;
+}
+
+
+.variation-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    background: var(--muted);
+    border-radius: 4px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
 }
 
 .badge {
@@ -456,6 +500,27 @@ th {
     font-weight: 700;
     font-size: 20px;
     color: var(--secondary);
+}
+
+.spread-note {
+    font-family: 'Manrope', sans-serif;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    text-align: center;
+    opacity: 0.8;
+}
+
+.alert-note {
+    margin-top: 12px;
+    padding: 10px;
+    background: hsla(0, 84%, 60%, 0.1);
+    border: 1px solid hsla(0, 84%, 60%, 0.2);
+    border-radius: 6px;
+    color: var(--destructive);
+    font-family: 'Manrope', sans-serif;
+    font-size: 11px;
+    text-align: center;
 }
 
 .caption {
