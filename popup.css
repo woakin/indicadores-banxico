@@ -1,423 +1,498 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap');
+
 :root {
-    --bg: #f8fafc;
-    --fg: #0f172a;
-    --muted: #64748b;
-    --border: #e5e7eb;
-    --accent: #0f172a;
-    --surface: #fff;
+    --primary: hsl(210 60% 25%);
+    /* #1A3A5C */
+    --secondary: hsl(170 45% 45%);
+    /* #3FA69A */
+    --background: hsl(0 0% 100%);
+    --muted: hsl(210 20% 96%);
+    --border: hsl(210 20% 90%);
+
+    /* Semantic aliases */
+    --bg: var(--background);
+    --fg: hsl(210 60% 15%);
+    --text-muted: hsl(210 40% 45%);
+    --card-radius: 12px;
+    --btn-radius: 10px;
+
+    /* Phase 3: High-Impact Tokens */
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --gradient-hero: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    --gradient-primary: linear-gradient(135deg, var(--primary) 0%, hsl(210 60% 35%) 100%);
+    --gradient-secondary: linear-gradient(90deg, var(--secondary) 0%, hsl(170 45% 55%) 100%);
+    --surface-muted: hsl(210 20% 94%);
+    --destructive: #EF4444;
 }
 
 body {
-    font: 14px Inter, system-ui, Arial;
-    margin: 12px;
-    min-width: 550px;
+    font-family: 'Manrope', -apple-system, sans-serif;
+    font-weight: 400;
+    font-size: 14px;
+    margin: 0;
+    min-width: 580px;
     color: var(--fg);
-    background: var(--bg)
+    background: var(--bg);
+    line-height: 1.5;
+}
+
+h1,
+h2,
+h3,
+h4,
+.brand {
+    font-family: 'Poppins', sans-serif;
 }
 
 .shell {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 12px 12px 10px;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06)
-}
-
-.header {
+    padding: 16px;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 6px
+    flex-direction: column;
+    gap: 16px;
 }
 
+/* Typography & Headers */
 h3 {
     margin: 0;
     font-size: 15px;
     font-weight: 700;
-    letter-spacing: -0.01em
+    font-family: 'Poppins', sans-serif;
+    letter-spacing: -0.01em;
+    color: var(--fg);
 }
 
-.btn {
-    appearance: none;
-    border: 1px solid var(--accent);
-    background: var(--accent);
-    color: #fff;
-    border-radius: 10px;
-    padding: 8px 12px;
-    font-weight: 700;
-    cursor: pointer;
-    font-size: 13px;
-    transition: background 0.2s, border-color 0.2s
+.muted {
+    color: var(--text-muted);
+    font-family: 'Manrope', sans-serif;
+    font-size: 11px;
 }
 
-.btn:hover {
-    background: #0b1224
+/* Tabs Styles - Alasha Hero Design */
+.nav-container {
+    background: transparent;
+    margin-bottom: 0;
+    border-bottom: none;
 }
 
-.btn:focus-visible {
-    outline: 3px solid rgba(59, 130, 246, 0.25);
-    outline-offset: 2px
-}
-
-/* Tabs Styles */
 .tabs {
     display: flex;
     gap: 8px;
-    margin-bottom: 16px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 8px;
+    background: var(--muted);
+    padding: 4px;
+    border-radius: var(--btn-radius);
 }
 
 .tab-btn {
-    background: none;
+    flex: 1;
+    background: transparent;
     border: none;
-    padding: 6px 12px;
+    padding: 8px 12px;
     font-size: 13px;
     font-weight: 600;
-    color: var(--muted);
+    font-family: 'Poppins', sans-serif;
+    color: var(--text-muted);
     cursor: pointer;
     border-radius: 8px;
-    transition: all 0.2s;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.tab-btn:hover {
-    background: rgba(15, 23, 42, 0.04);
+.tab-btn:hover:not(.active) {
+    background: hsla(210, 20%, 90%, 0.5);
     color: var(--fg);
 }
 
 .tab-btn.active {
-    background: var(--accent);
-    color: #fff;
+    background: var(--gradient-primary);
+    color: #FFFFFF;
+    border-radius: var(--btn-radius);
+    box-shadow: 0 4px 10px hsla(210, 60%, 25%, 0.2);
 }
 
-.link {
-    color: var(--fg);
-    text-decoration: none;
-    border-bottom: 1px solid var(--border)
+/* Sections & Containers */
+.section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
 }
 
-.warn {
-    background: #f8fafc;
-    border: 1px dashed var(--border);
-    border-radius: 12px;
-    padding: 10px;
-    margin: 10px 0;
-    display: none;
-    font-size: 13px
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 6px
-}
-
-th,
-td {
-    padding: 7px 4px;
-    border-bottom: 1px solid var(--border);
-    font-size: 13px
-}
-
-th:nth-child(2),
-td:nth-child(2) {
-    text-align: right
-}
-
-th:nth-child(3),
-td:nth-child(3) {
-    text-align: right;
-    color: var(--muted)
-}
-
-tbody tr:nth-child(odd) {
-    background: #f9fafb
-}
-
-.muted {
-    color: var(--muted);
-    font-size: 12px;
-    margin: 10px 0 4px
-}
-
-.value-cell {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 6px
-}
-
-.copy-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 2px 4px;
-    font-size: 14px;
-    color: #94a3b8;
-    transition: color 0.2s, transform 0.08s
-}
-
-.copy-btn:hover {
-    color: var(--fg)
-}
-
-.copy-btn:active {
-    transform: translateY(1px)
-}
-
-.toast {
-    position: fixed;
-    bottom: 12px;
-    right: 12px;
-    background: var(--accent);
-    color: #fff;
-    padding: 10px 14px;
-    border-radius: 10px;
-    font-size: 13px;
-    opacity: 0;
-    transition: opacity 0.3s;
-    pointer-events: none;
-    z-index: 1000
-}
-
-.toast.show {
-    opacity: 1
-}
-
-.loading {
-    display: none;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--muted);
-    margin-left: auto
-}
-
-.loading::before {
-    content: "";
-    width: 12px;
-    height: 12px;
-    border: 2px solid #cbd5e1;
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    display: inline-block;
-    animation: spin 0.8s linear infinite
-}
-
-body.loading .loading {
-    display: flex
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg)
-    }
-}
-
-/* Historical View Styles */
-#historicalView {
-    display: none;
-}
-
-#historicalHeader {
+.section-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 12px;
 }
 
-#historicalTitle {
-    font-size: 1.1em;
-    font-weight: 600;
-    color: #0f172a;
-    margin: 0;
-}
-
-#dateControls {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-}
-
-#dateControls label {
-    font-size: 0.9em;
-}
-
-#dateControls input {
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 4px 6px;
-}
-
-#historicalTableContainer {
-    max-height: 300px;
-    overflow-y: auto;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-}
-
-#historicalError {
-    color: #dc2626;
-    font-size: 0.9em;
-    margin-top: 10px;
-}
-
-/* Financial Health Section */
-.financial-health-section {
-    margin-top: 16px;
-    padding: 16px;
-    background: #f8fafc;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-}
-
-.badge {
-    padding: 4px 8px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 700;
-}
-
-#realRateLabel.positive {
-    background: #dcfce7;
-    color: #166534;
-}
-
-#realRateLabel.negative {
-    background: #fee2e2;
-    color: #991b1b;
-}
-
-.real-rate-monitor {
+/* Indicator Cards */
+.indicator-cards {
     display: flex;
     flex-direction: column;
+    gap: 8px;
+}
+
+.indicator-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--btn-radius);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.indicator-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--secondary);
+}
+
+.card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.card-title {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--fg);
+}
+
+.card-date {
+    font-family: 'Manrope', sans-serif;
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.card-data {
+    display: flex;
+    align-items: center;
     gap: 12px;
 }
 
+.card-value {
+    font-family: 'Manrope', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.card-actions {
+    display: flex;
+    gap: 4px;
+}
+
+/* Interactive Elements */
+.btn {
+    appearance: none;
+    border: none;
+    background: var(--gradient-hero);
+    color: #fff;
+    border-radius: var(--btn-radius);
+    height: 36px;
+    padding: 0 24px;
+    font-weight: 600;
+    font-family: 'Poppins', sans-serif;
+    cursor: pointer;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-md);
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 12px -2px hsla(210, 60%, 25%, 0.3);
+    filter: brightness(1.1);
+}
+
+.icon-btn {
+    background: var(--muted);
+    border: none;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+    border-radius: 50%;
+    color: var(--primary);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-btn:hover {
+    background: var(--secondary);
+    color: #FFFFFF;
+    transform: scale(1.1);
+}
+
+/* Salud Financiera Widget */
+.real-rate-monitor {
+    position: relative;
+    padding-top: 25px;
+    margin-top: 10px;
+}
+
+.label-container {
+    position: absolute;
+    top: 0;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    font-family: 'Manrope', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--text-muted);
+}
+
+.label-item.red {
+    color: #94A3B8;
+}
+
+/* Muted for labels */
+.label-item.green {
+    color: #94A3B8;
+}
+
 .real-rate-bar-container {
-    height: 24px;
-    background: #e2e8f0;
-    border-radius: 8px;
+    height: 8px;
+    background: #F1F5F9;
+    border-radius: 100px;
     overflow: hidden;
     display: flex;
 }
 
 .bar-segment {
     height: 100%;
-    transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .inflation-bar {
-    background: #f87171;
-    /* Red-400 */
+    background: #E2E8F0;
 }
 
 .profit-bar {
-    background: #4ade80;
-    /* Green-400 */
+    background: var(--gradient-secondary);
 }
 
-.real-rate-legend {
-    display: flex;
-    justify-content: space-around;
-    font-size: 11px;
+#realRateDescription {
+    margin-top: 12px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--fg);
 }
 
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+.formula-note {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 4px;
+    font-style: italic;
 }
 
-.dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
+.badge {
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
 }
 
-.dot.inflation {
-    background: #f87171;
+.badge.positive {
+    background: #ECFDF5;
+    color: #065F46;
 }
 
-.dot.nominal {
-    background: #4ade80;
+.badge.negative {
+    background: #FEF2F2;
+    color: #991B1B;
 }
 
-/* Calculator Styles */
-.calculator-section {
-    margin-top: 20px;
-    padding: 16px;
-    background: #f9fafb;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-}
-
-.calculator-section h3 {
-    margin-bottom: 12px;
-}
-
+/* Calculadoras */
 .calc-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    align-items: flex-end;
     gap: 12px;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
 }
 
 .calc-field {
+    flex: 1;
     display: flex;
     flex-direction: column;
+    gap: 8px;
+}
+
+.calc-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--btn-radius);
+    font-size: 14px;
+    background: var(--bg);
+    transition: border-color 0.3s, box-shadow 0.2s;
+    color: var(--fg);
+    height: 38px;
+}
+
+#fiscalView .calc-input {
+    height: 36px;
+}
+
+.calc-input:focus {
+    outline: none;
+    border-color: var(--secondary);
+    box-shadow: 0 0 0 3px hsla(170, 45%, 45%, 0.15);
+}
+
+.compact-result {
+    text-align: center;
+    padding: 16px;
+    background: var(--muted);
+    border-radius: var(--btn-radius);
+    font-size: 24px;
+    font-weight: 700;
+    font-family: 'Poppins', sans-serif;
+    color: var(--primary);
+    border: 1px solid var(--border);
+}
+
+.compact-result.placeholder {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--muted);
+    border: 1px dashed var(--border);
+    background: transparent;
+}
+
+/* Historical View Switcher */
+#historicalView .view-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+#historicalTableContainer {
+    max-height: 380px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    background: var(--bg);
+    margin-top: 16px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+}
+
+th,
+td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+th {
+    background: var(--muted);
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    color: var(--primary);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+/* Fiscal Results Redesign */
+.fiscal-results {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 12px;
+    background: #F3F5F7;
+    padding: 16px;
+    border-radius: var(--card-radius);
+    border: 1px solid var(--border);
+}
+
+.result-item {
+    display: flex;
+    flex-direction: column;
+    text-align: center;
     gap: 4px;
 }
 
-.calc-field label {
-    font-size: 12px;
+.result-item.technical #fiscalFactor {
+    font-family: 'Manrope', sans-serif;
     font-weight: 600;
-    color: var(--muted);
+    font-size: 15px;
+    color: var(--primary);
 }
 
-.calc-input,
-.calc-select {
-    padding: 8px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 14px;
+.result-item.highlight label {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
     color: var(--fg);
-    background: var(--surface);
-    transition: border-color 0.2s;
+    font-size: 11px;
 }
 
-.calc-input:focus,
-.calc-select:focus {
-    outline: none;
-    border-color: var(--accent);
-}
-
-.calc-result {
-    padding: 12px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    min-height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.result-item.highlight #fiscalUpdatedAmount {
+    font-family: 'Poppins', sans-serif;
     font-weight: 700;
-    font-size: 16px;
-    color: var(--accent);
+    font-size: 20px;
+    color: var(--secondary);
+}
+
+.caption {
+    font-family: 'Manrope', sans-serif;
+    font-size: 10px;
+    color: var(--text-muted);
     text-align: center;
+    margin-top: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
-#swapMode {
-    transition: transform 0.2s, background 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
+/* Toast & UTILS */
+.toast {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--primary);
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: var(--btn-radius);
+    font-size: 13px;
+    font-weight: 600;
+    transition: transform 0.3s;
+    z-index: 3000;
 }
 
-#swapMode:active {
-    transform: scale(0.96);
+.toast.show {
+    transform: translateX(-50%) translateY(0);
+}
+
+.warn {
+    background: #FFFBEB;
+    border: 1px solid #FEF3C7;
+    color: #92400E;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    font-size: 13px;
 }

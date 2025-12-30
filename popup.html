@@ -8,139 +8,151 @@
 
 <body>
   <div class="shell">
-    <nav class="tabs">
-      <button class="tab-btn active" data-target="mainView">Indicadores</button>
-      <button class="tab-btn" data-target="fiscalView">Actualización Fiscal</button>
+    <nav class="nav-container">
+      <div class="tabs">
+        <button class="tab-btn active" data-target="mainView">Indicadores</button>
+        <button class="tab-btn" data-target="fiscalView">Actualización Fiscal</button>
+      </div>
     </nav>
 
-    <div id="mainView">
-      <div class="header">
-        <div>
-          <h3>Indicadores Banxico</h3>
-          <p id="lastUpdated" class="muted" style="margin:2px 0">Actualizado: —</p>
+    <!-- Pestaña Principal: Indicadores y Calculadora UDI -->
+    <div id="mainView" class="view-content">
+      <div class="section">
+        <div class="section-header">
+          <div>
+            <h3>Indicadores Banxico</h3>
+            <p id="lastUpdated" class="muted" style="margin:2px 0">Actualizado: —</p>
+          </div>
+          <button id="refresh" class="icon-btn" title="Actualizar datos">🔄</button>
         </div>
-        <div class="loading" id="loading">Cargando…</div>
-        <button id="refresh" class="btn">Actualizar</button>
-      </div>
-      <div id="warning" class="warn">
-        Falta tu token SIE. <a href="onboarding.html" class="link" target="_blank">Configúralo aquí</a>.
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Indicador</th>
-            <th>Valor</th>
-            <th>Fecha</th>
-            <th style="width:20px;"></th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
+        <div id="warning" class="warn">
+          Falta tu token SIE. <a href="onboarding.html" class="link" target="_blank">Configúralo aquí</a>.
+        </div>
 
-      <!-- Monitor de Tasa Real (Salud Financiera) -->
-      <div class="financial-health-section">
-        <div class="header" style="margin-bottom: 8px;">
+        <div id="indicatorCards" class="indicator-cards">
+          <!-- Las tarjetas se generan dinámicamente desde popup.js -->
+          <p class="muted" style="text-align:center">Cargando indicadores...</p>
+        </div>
+      </div>
+
+      <!-- Widget de Salud Financiera -->
+      <div class="section">
+        <div class="section-header">
           <h3>Salud Financiera (Tasa Real)</h3>
           <span id="realRateLabel" class="badge">--</span>
         </div>
+
         <div class="real-rate-monitor">
+          <div class="label-container">
+            <span id="inflLabel" class="label-item red">Inflación: --</span>
+            <span id="targetLabel" class="label-item green">Tasa Objetivo: --</span>
+          </div>
           <div class="real-rate-bar-container">
             <div id="realRateInflationBar" class="bar-segment inflation-bar"></div>
             <div id="realRateProfitBar" class="bar-segment profit-bar"></div>
           </div>
-          <div class="real-rate-legend">
-            <div class="legend-item">
-              <span class="dot inflation"></span>
-              <span>Inflación: <b id="nominalInflationValue">--</b></span>
-            </div>
-            <div class="legend-item">
-              <span class="dot nominal"></span>
-              <span>Tasa Objetivo: <b id="nominalRateValue">--</b></span>
-            </div>
-          </div>
-          <div id="realRateDescription" class="muted" style="text-align: center; font-size: 11px; margin-top: 6px;">
-            Obteniendo datos de inflación...
+          <div id="realRateDescription" class="muted">
+            Calculando rendimiento real...
           </div>
         </div>
       </div>
 
-      <div class="calculator-section">
-        <h3>Calculadora de UDIs</h3>
+      <!-- Calculadora de UDIs -->
+      <div class="section">
+        <div class="section-header">
+          <h3>Calculadora de UDIs</h3>
+          <span id="calcModeLabel" class="muted">UDIs → Pesos</span>
+        </div>
+
         <div class="calc-grid">
           <div class="calc-field">
-            <label for="calcAmount">Monto</label>
-            <input type="number" id="calcAmount" class="calc-input" placeholder="0.00" step="0.01">
+            <input type="number" id="calcAmount" class="calc-input" placeholder="Monto a convertir" step="0.01">
           </div>
-          <div class="calc-field">
-            <label id="calcModeLabel">UDIs &rarr; Pesos</label>
-            <button id="swapMode" class="btn" style="width: 100%; height: 38.5px; padding: 0;">⇅ Intercambiar</button>
+          <div class="swap-btn-container">
+            <button id="swapMode" class="icon-btn" title="Intercambiar modo (Pesos/UDIs)"
+              style="font-size: 20px;">⇅</button>
           </div>
         </div>
-        <div id="calcResult" class="calc-result">
-          Esperando datos...
+
+        <div id="calcResult" class="compact-result placeholder">
+          El resultado aparecerá aquí
         </div>
-        <div id="calcDate" class="muted" style="text-align:center; margin-top:8px"></div>
+        <div id="calcDate" class="muted" style="text-align:center; margin-top:12px; font-size: 11px;"></div>
       </div>
 
-      <p class="muted">Fuente: SIE Banxico &middot; <a href="https://alasha.biz" target="_blank"
-          class="link">alasha.biz</a></p>
+      <p class="muted" style="text-align: center; margin-top: 8px;">
+        Fuente: SIE Banxico &middot; <a href="https://alasha.biz" target="_blank" class="link">alasha.biz</a>
+      </p>
     </div>
 
+    <!-- Pestaña: Actualización Fiscal -->
     <div id="fiscalView" style="display:none">
-      <div class="header">
-        <h3>Actualización Fiscal (INPC)</h3>
-      </div>
-      <div class="calculator-section">
-        <div class="calc-field" style="margin-bottom: 12px;">
-          <label for="fiscalAmount">Monto Original</label>
+      <div class="section">
+        <div class="section-header">
+          <h3>Actualización Fiscal (INPC)</h3>
+        </div>
+
+        <div class="calc-field" style="margin-bottom: 20px;">
+          <label class="muted">Monto Original</label>
           <input type="number" id="fiscalAmount" class="calc-input" placeholder="0.00" step="0.01">
         </div>
-        <div class="calc-grid">
+
+        <div class="calc-grid" style="align-items: flex-start;">
           <div class="calc-field">
-            <label for="fiscalInitialDate">Mes/Año Inicial</label>
+            <label class="muted">Mes Inicial</label>
             <input type="month" id="fiscalInitialDate" class="calc-input">
           </div>
           <div class="calc-field">
-            <label for="fiscalFinalDate">Mes/Año Final</label>
+            <label class="muted">Mes Final</label>
             <input type="month" id="fiscalFinalDate" class="calc-input">
           </div>
         </div>
-        <button id="calculateFiscal" class="btn" style="width: 100%; margin-top: 12px;">Calcular Actualización</button>
 
-        <div id="fiscalResultContainer" style="margin-top: 16px; display: none;">
-          <div class="calc-field">
-            <label>Factor de Actualización</label>
-            <div id="fiscalFactor" class="calc-result" style="font-size: 1.1em;">—</div>
+        <button id="calculateFiscal" class="btn" style="width: 100%; margin-top: 10px; padding: 12px;">Calcular
+          Actualización</button>
+
+        <div id="fiscalResultContainer" class="fiscal-results" style="display: none;">
+          <div class="result-item technical">
+            <label class="muted">Factor</label>
+            <div id="fiscalFactor">—</div>
           </div>
-          <div class="calc-field" style="margin-top: 10px;">
-            <label>Monto Actualizado</label>
-            <div id="fiscalUpdatedAmount" class="calc-result" style="color: #059669; font-size: 1.3em;">—</div>
+          <div class="result-item highlight">
+            <label>Actualizado</label>
+            <div id="fiscalUpdatedAmount">—</div>
           </div>
         </div>
       </div>
-      <p class="muted">Basado en Serie SP1 (INPC) &middot; Banxico</p>
+      <p class="caption">Basado en Serie SP1 (INPC) &middot; Banxico</p>
     </div>
-    <div id="historicalView">
-      <div id="historicalHeader">
-        <h3 id="historicalTitle"></h3>
-        <button id="backToList" class="btn">← Volver</button>
+
+    <!-- Vista de Historial (View Switcher) -->
+    <div id="historicalView" class="view-content" style="display:none">
+      <div class="section">
+        <div class="view-header">
+          <button id="backToMain" class="icon-btn back-btn" title="Volver">←</button>
+          <h3 id="historicalTitle">Historial</h3>
+        </div>
+
+        <div class="calc-grid" style="align-items: flex-end; margin-top: 16px;">
+          <div class="calc-field">
+            <label class="muted">Desde</label>
+            <input type="date" id="historicalStartDate" class="calc-input">
+          </div>
+          <div class="calc-field">
+            <label class="muted">Hasta</label>
+            <input type="date" id="historicalEndDate" class="calc-input">
+          </div>
+          <button id="historicalUpdate" class="btn">Ver</button>
+        </div>
+
+        <div id="historicalTableContainer" style="margin-top: 16px;"></div>
+        <div id="historicalError" class="muted" style="color:hsl(0 100% 40%); text-align:center; margin-top: 8px;">
+        </div>
       </div>
-      <div id="dateControls">
-        <label for="startDate">Desde:</label>
-        <input type="date" id="startDate">
-        <label for="endDate">Hasta:</label>
-        <input type="date" id="endDate">
-        <button id="updateHistory" class="btn">Ver</button>
-      </div>
-      <div id="historicalTableContainer">
-        <!-- La tabla de datos históricos se insertará aquí -->
-      </div>
-      <div id="noDataMessage" style="display: none; padding: 20px; text-align: center; color: var(--muted);">
-        <p>No se encontraron datos para este rango de fechas.</p>
-      </div>
-      <div id="historicalError"></div>
     </div>
-    <div id="toast" class="toast"></div>
+
+    <div id="toast" class="toast">¡Copiado!</div>
+    <div id="loading" class="loading" style="position: fixed; top: 22px; right: 26px; z-index: 101;"></div>
   </div>
   <script type="module" src="popup.js"></script>
 </body>

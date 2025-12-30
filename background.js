@@ -1,15 +1,9 @@
-const BANXICO_API_BASE = "https://www.banxico.org.mx/SieAPIRest/service/v1";
-const DEFAULT_SERIES = [
-    { id: "SF61745", title: "Tasa objetivo Banxico (%)" },
-    { id: "SP74665", title: "Inflación General Anual" },
-    { id: "SP68257", title: "Valor de UDIS" },
-    { id: "SP1", title: "INPC (índice)" }
-];
+import { DEFAULT_SERIES, BANXICO_API_BASE } from './constants.js';
 
 // --- Background Fetch Logic ---
 
 async function fetchOportuno(idsCsv, token) {
-    const url = `${BANXICO_API_BASE}/series/${idsCsv}/datos?mediaType=json&token=${encodeURIComponent(token)}`;
+    const url = `${BANXICO_API_BASE}/series/${idsCsv}/datos/oportuno?mediaType=json&token=${encodeURIComponent(token)}`;
     const r = await fetch(url, { cache: "no-store" });
     if (!r.ok) {
         if (r.status === 401) throw new Error("Token SIE inválido o expirado");
@@ -54,14 +48,21 @@ async function refreshDashboardData() {
     });
 
     try {
+        console.log(`[Background] Fetching data for IDs: ${ids.join(",")}`);
         const data = await fetchOportuno(ids.join(","), sieToken);
         const seriesResults = data?.bmx?.series || [];
+
+        if (seriesResults.length === 0) {
+            console.warn("[Background] No series data returned from API. Full response:", JSON.stringify(data));
+        } else {
+            console.log("[Background] First series sample:", JSON.stringify(seriesResults[0]));
+        }
 
         await chrome.storage.local.set({
             cachedSeriesData: seriesResults,
             lastUpdated: Date.now()
         });
-        console.log("[Background] Refresh complete.");
+        console.log("[Background] Refresh complete. Data stored successfully.");
         return { success: true };
     } catch (e) {
         console.error("[Background] Refresh failed:", e);
@@ -83,7 +84,10 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === "REFRESH_DATA") {
-        refreshDashboardData().then(sendResponse);
+        refreshDashboardData().then(res => {
+            if (!res) sendResponse({ success: false, error: "No se pudo iniciar la actualización (¿Falta Token?)" });
+            else sendResponse(res);
+        });
         return true; // async
     }
 

@@ -89,66 +89,82 @@ function latestValidObservation(datos) {
 // --- Main View Rendering ---
 
 function render(rows, warn = false) {
-  $("#warning").style.display = warn ? "block" : "none";
-  const tb = $("#tbody"); tb.innerHTML = "";
+  const warningEl = $("#warning");
+  if (warningEl) warningEl.style.display = warn ? "block" : "none";
+
+  const container = $("#indicatorCards");
+  if (!container) return;
+  container.innerHTML = "";
+
+  if (rows.length === 0) {
+    container.innerHTML = '<p class="muted" style="text-align:center">No hay indicadores seleccionados.</p>';
+    return;
+  }
+
   for (const r of rows) {
-    const tr = document.createElement("tr");
+    const card = document.createElement("div");
+    card.className = "indicator-card";
 
-    // Name cell
-    const nameCell = document.createElement("td");
-    nameCell.textContent = r.name;
-    if (r.description || r.periodicity) {
-      nameCell.style.borderBottom = "1px dotted #cbd5e1";
-      nameCell.style.cursor = "help";
-      const tooltip = [];
-      if (r.description) tooltip.push(r.description);
-      if (r.periodicity) tooltip.push(`Periodicidad: ${r.periodicity}`);
-      nameCell.title = tooltip.join("\n");
+    // Left side: Name and Date
+    const info = document.createElement("div");
+    info.className = "card-info";
+
+    const title = document.createElement("div");
+    title.className = "card-title";
+    title.textContent = r.name;
+    if (r.config?.description) {
+      title.style.borderBottom = "1px dotted var(--border)";
+      title.style.cursor = "help";
+      title.title = r.config.description;
     }
-    tr.appendChild(nameCell);
 
-    // Value cell
-    const valueCell = document.createElement("td");
-    const valueDiv = document.createElement("div");
-    valueDiv.className = "value-cell";
+    const date = document.createElement("div");
+    date.className = "card-date";
+    date.textContent = r.date;
 
-    const valueSpan = document.createElement("span");
-    valueSpan.textContent = r.value;
-    valueDiv.appendChild(valueSpan);
+    info.appendChild(title);
+    info.appendChild(date);
+    card.appendChild(info);
+
+    // Right side: Value and Actions
+    const data = document.createElement("div");
+    data.className = "card-data";
+
+    const value = document.createElement("div");
+    value.className = "card-value";
+    value.textContent = r.value;
+    data.appendChild(value);
+
+    const actions = document.createElement("div");
+    actions.className = "card-actions";
 
     const copyBtn = document.createElement("button");
-    copyBtn.className = "copy-btn";
-    copyBtn.textContent = "📋";
+    copyBtn.className = "icon-btn";
+    copyBtn.innerHTML = "📋";
     copyBtn.title = "Copiar valor";
     copyBtn.addEventListener("click", (e) => {
-      e.preventDefault();
+      e.stopPropagation();
       copyToClipboard(r.value);
     });
 
-    valueDiv.appendChild(copyBtn);
-    valueCell.appendChild(valueDiv);
-    tr.appendChild(valueCell);
+    actions.appendChild(copyBtn);
 
-    // Date cell
-    const dateCell = document.createElement("td");
-    dateCell.textContent = r.date;
-    tr.appendChild(dateCell);
-
-    // Graph button cell
-    const graphCell = document.createElement("td");
     if (r.date !== "Sin datos" && r.date !== "—") {
-      const detailBtn = document.createElement("button");
-      detailBtn.className = "copy-btn";
-      detailBtn.textContent = "📈";
-      detailBtn.title = "Ver gráfico histórico";
-      detailBtn.addEventListener("click", (e) => {
-        e.preventDefault();
+      const graphBtn = document.createElement("button");
+      graphBtn.className = "icon-btn";
+      graphBtn.innerHTML = "📈";
+      graphBtn.title = "Ver gráfico histórico";
+      graphBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
         showHistoricalView(r.id, r.name, r.config);
       });
-      graphCell.appendChild(detailBtn);
+      actions.appendChild(graphBtn);
     }
-    tr.appendChild(graphCell);
-    tb.append(tr);
+
+    data.appendChild(actions);
+    card.appendChild(data);
+
+    container.appendChild(card);
   }
 }
 
@@ -160,9 +176,11 @@ async function refresh(force = false) {
     await chrome.runtime.sendMessage({ type: "REFRESH_DATA" });
   }
 
-  const { sieToken, sieSeries, lastUpdated, cachedSeriesData } = await chrome.storage.local.get([
+  const storage = await chrome.storage.local.get([
     "sieToken", "sieSeries", "lastUpdated", "cachedSeriesData"
   ]);
+  const { sieToken, sieSeries, lastUpdated, cachedSeriesData } = storage;
+  console.log("[Popup] Storage retrieved:", { hasToken: !!sieToken, seriesCount: cachedSeriesData?.length });
 
   // Update badge
   const badge = document.getElementById("lastUpdated");
@@ -179,17 +197,26 @@ async function refresh(force = false) {
 
   // If no data yet, trigger a refresh and wait
   if (!cachedSeriesData || cachedSeriesData.length === 0) {
+    console.log("[Popup] No cached data found, requesting refresh...");
     const res = await chrome.runtime.sendMessage({ type: "REFRESH_DATA" });
     if (!res?.success) {
-      render([{ name: "Error al obtener datos", value: "—", date: res?.error || "Error" }], false);
+      console.error("[Popup] Refresh request failed:", res?.error);
+      render([{ name: "Error al obtener datos", value: "—", date: res?.error || "Error desconocido" }], false);
       document.body.classList.remove("loading");
       return;
     }
+    console.log("[Popup] Refresh successful, retrying load...");
     // Call refresh again to load from the now-populated storage
     return refresh(false);
   }
 
-  const byId = new Map(cachedSeriesData.map(s => [s.idSerie, s]));
+  console.log("[Popup] Loading data from storage:", cachedSeriesData.length, "series.");
+  if (cachedSeriesData.length > 0) console.log("[Popup] First cached item sample:", JSON.stringify(cachedSeriesData[0]));
+
+  const byId = new Map();
+  cachedSeriesData.forEach(s => {
+    if (s.idSerie) byId.set(s.idSerie, s);
+  });
   let list = Array.isArray(sieSeries) ? sieSeries : DEFAULT_SERIES;
 
   const rows = list.map(cfg => {
@@ -249,17 +276,21 @@ function updateCalculator() {
 
   if (!currentUdiValue || !resultArea) return;
 
-  modeLabel.innerHTML = currentMode === "pesosToUdis" ? "Pesos &rarr; UDIs" : "UDIs &rarr; Pesos";
+  modeLabel.textContent = currentMode === "pesosToUdis" ? "Pesos → UDIs" : "UDIs → Pesos";
 
   if (amountStr === "") {
-    resultArea.textContent = "Ingrese un monto";
+    resultArea.textContent = "El resultado aparecerá aquí";
+    resultArea.classList.add("placeholder");
     dateArea.textContent = currentUdiDate ? `Valor al ${currentUdiDate}` : "";
     return;
   }
   if (isNaN(amount) || amount < 0) {
     resultArea.textContent = "Monto inválido";
+    resultArea.classList.add("placeholder");
     return;
   }
+
+  resultArea.classList.remove("placeholder");
 
   if (currentMode === "pesosToUdis") {
     const res = amount / currentUdiValue;
@@ -269,6 +300,37 @@ function updateCalculator() {
     resultArea.textContent = res.toLocaleString("es-MX", { style: "currency", currency: "MXN" });
   }
   dateArea.textContent = `Valor al ${currentUdiDate}`;
+  saveCalculatorState();
+}
+
+function saveCalculatorState() {
+  const state = {
+    udiAmount: $("#calcAmount")?.value,
+    udiMode: currentMode,
+    fiscalAmount: $("#fiscalAmount")?.value,
+    fiscalInitialDate: $("#fiscalInitialDate")?.value,
+    fiscalFinalDate: $("#fiscalFinalDate")?.value
+  };
+  chrome.storage.local.set({ calculatorState: state });
+}
+
+async function loadCalculatorState() {
+  const { calculatorState } = await chrome.storage.local.get("calculatorState");
+  if (calculatorState) {
+    if ($("#calcAmount")) $("#calcAmount").value = calculatorState.udiAmount || "";
+    if (calculatorState.udiMode) currentMode = calculatorState.udiMode;
+    if ($("#fiscalAmount")) $("#fiscalAmount").value = calculatorState.fiscalAmount || "";
+    if ($("#fiscalInitialDate")) $("#fiscalInitialDate").value = calculatorState.fiscalInitialDate || "";
+    if ($("#fiscalFinalDate")) $("#fiscalFinalDate").value = calculatorState.fiscalFinalDate || "";
+    updateCalculator();
+  }
+}
+
+/**
+ * Fisher's exact formula: ((1 + i/100) / (1 + pi/100) - 1) * 100
+ */
+function calculateRealRate(nominal, inflation) {
+  return (((1 + (nominal / 100)) / (1 + (inflation / 100))) - 1) * 100;
 }
 
 function updateRealRateMonitor(targetRateSerie, inflationSerie) {
@@ -278,87 +340,133 @@ function updateRealRateMonitor(targetRateSerie, inflationSerie) {
 
   const nominal = parseFloat(targetObs.dato.replace(",", "."));
   const inflation = parseFloat(inflationObs.dato.replace(",", "."));
-  const realRate = nominal - inflation;
+  const realRate = calculateRealRate(nominal, inflation);
 
   const fmt = (v) => v.toLocaleString("es-MX", { minimumFractionDigits: 2 }) + "%";
-  $("#nominalRateValue").textContent = fmt(nominal);
-  $("#nominalInflationValue").textContent = fmt(inflation);
-  $("#realRateLabel").textContent = (realRate >= 0 ? "+" : "") + fmt(realRate) + " Real";
-  $("#realRateLabel").className = "badge " + (realRate >= 0 ? "positive" : "negative");
+  $("#inflLabel").textContent = `Inflación: ${fmt(inflation)}`;
+  $("#targetLabel").textContent = `Tasa Objetivo: ${fmt(nominal)}`;
 
-  if (realRate > 0) $("#realRateDescription").textContent = "¡Ganas valor! Superas la inflación.";
-  else if (realRate < 0) $("#realRateDescription").textContent = "Pierdes valor frente a la inflación.";
-  else $("#realRateDescription").textContent = "Mantienes el valor de tu dinero.";
+  const label = $("#realRateLabel");
+  label.textContent = (realRate >= 0 ? "+" : "") + fmt(realRate) + " Real";
+  label.className = "badge " + (realRate >= 0 ? "positive" : "negative");
+
+  const desc = $("#realRateDescription");
+  if (desc) {
+    if (nominal === 0) {
+      desc.textContent = "Obteniendo datos de tasa objetivo...";
+    } else if (inflation === 0) {
+      desc.textContent = "Obteniendo datos de inflación...";
+    } else {
+      desc.innerHTML = (realRate > 0
+        ? "<strong>¡Tu dinero gana poder adquisitivo!</strong>"
+        : "<strong>Tu rendimiento es menor a la inflación.</strong> Estás perdiendo valor real.") +
+        `<div class="formula-note">Calculado con la Fórmula de Fisher</div>`;
+    }
+  }
+
+  const inflationBar = $("#realRateInflationBar");
+  const profitBar = $("#realRateProfitBar");
 
   if (nominal > 0) {
+    // Proporción: cuánto de la tasa nominal se "come" la inflación
     const infP = Math.min(100, (inflation / nominal) * 100);
-    $("#realRateInflationBar").style.width = `${infP}%`;
-    $("#realRateProfitBar").style.width = `${Math.max(0, 100 - infP)}%`;
+    inflationBar.style.width = `${infP}%`;
+    profitBar.style.width = `${Math.max(0, 100 - infP)}%`;
+
+    // Colores dinámicos
+    if (realRate >= 0) {
+      profitBar.style.background = "var(--secondary)"; // Alasha Green
+      label.style.background = "var(--secondary)";
+      label.style.color = "#FFFFFF";
+    } else {
+      profitBar.style.background = "var(--destructive)"; // Destructive Red
+      label.style.background = "var(--destructive)";
+      label.style.color = "#FFFFFF";
+    }
   }
 }
 
-// --- Historical View ---
+// --- Historical View (View Switcher) ---
 
 async function showHistoricalView(seriesId, title, config) {
-  $("#mainView").style.display = "none";
-  $("#historicalView").style.display = "block";
-  $("#historicalTitle").textContent = title;
+  const mainView = $("#mainView");
+  const historyView = $("#historicalView");
+  const tableContainer = $("#historicalTableContainer");
+  const errorEl = $("#historicalError");
+  const titleEl = $("#historicalTitle");
+  const startInput = $("#historicalStartDate");
+  const endInput = $("#historicalEndDate");
 
+  // Switch Views
+  mainView.style.display = "none";
+  historyView.style.display = "block";
+  titleEl.textContent = title;
+
+  // Clear State
+  tableContainer.innerHTML = "";
+  errorEl.textContent = "";
+
+  // Set Default Dates (Last month)
   const end = new Date();
   const start = new Date();
   start.setMonth(end.getMonth() - 1);
-  $("#endDate").value = end.toISOString().slice(0, 10);
-  $("#startDate").value = start.toISOString().slice(0, 10);
+  startInput.value = start.toISOString().slice(0, 10);
+  endInput.value = end.toISOString().slice(0, 10);
 
   const update = async () => {
     document.body.classList.add("loading");
-    $("#historicalError").textContent = "";
-    $("#historicalTableContainer").innerHTML = "";
+    errorEl.textContent = "";
+    tableContainer.innerHTML = "";
 
     try {
       const resp = await chrome.runtime.sendMessage({
         type: "FETCH_HISTORICAL",
         seriesId,
-        startDate: $("#startDate").value,
-        endDate: $("#endDate").value
+        startDate: startInput.value,
+        endDate: endInput.value
       });
 
       if (!resp.success) throw new Error(resp.error);
 
-      const data = resp.data;
       const table = document.createElement("table");
-      table.innerHTML = "<thead><tr><th>Fecha</th><th>Valor</th></tr></thead>";
+      table.innerHTML = "<thead><tr><th>Fecha</th><th style='text-align:right'>Valor</th></tr></thead>";
       const tbody = document.createElement("tbody");
-      for (let i = data.length - 1; i >= 0; i--) {
+      for (let i = resp.data.length - 1; i >= 0; i--) {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${fmtDate(data[i].fecha, config.periodicity)}</td><td style="text-align:right">${fmtValue(config, data[i].dato)}</td>`;
+        tr.innerHTML = `<td>${fmtDate(resp.data[i].fecha, config.periodicity)}</td><td style="text-align:right">${fmtValue(config, resp.data[i].dato)}</td>`;
         tbody.appendChild(tr);
       }
       table.appendChild(tbody);
-      $("#historicalTableContainer").appendChild(table);
+      tableContainer.appendChild(table);
     } catch (e) {
-      $("#historicalError").textContent = e.message;
+      errorEl.textContent = e.message;
     } finally {
       document.body.classList.remove("loading");
     }
   };
 
-  $("#updateHistory").onclick = update;
+  $("#historicalUpdate").onclick = update;
   update();
 }
 
 // --- Events ---
 
 $("#refresh")?.addEventListener("click", () => refresh(true));
-$("#backToList")?.addEventListener("click", () => {
+
+$("#backToMain")?.addEventListener("click", () => {
   $("#historicalView").style.display = "none";
   $("#mainView").style.display = "block";
 });
 
 $("#calcAmount")?.addEventListener("input", updateCalculator);
+$("#fiscalAmount")?.addEventListener("input", saveCalculatorState);
+$("#fiscalInitialDate")?.addEventListener("change", saveCalculatorState);
+$("#fiscalFinalDate")?.addEventListener("change", saveCalculatorState);
+
 $("#swapMode")?.addEventListener("click", () => {
   currentMode = (currentMode === "pesosToUdis") ? "udisToPesos" : "pesosToUdis";
   updateCalculator();
+  saveCalculatorState();
 });
 
 document.querySelectorAll(".tab-btn").forEach(btn => {
@@ -407,7 +515,7 @@ async function calculateFiscalUpdate() {
     const factor = parseFloat(obsF.dato.replace(",", ".")) / parseFloat(obsI.dato.replace(",", "."));
     $("#fiscalFactor").textContent = factor.toFixed(6);
     $("#fiscalUpdatedAmount").textContent = (amount * factor).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
-    $("#fiscalResultContainer").style.display = "block";
+    $("#fiscalResultContainer").style.display = "grid";
   } catch (e) {
     showToast(e.message);
   } finally {
@@ -418,4 +526,5 @@ async function calculateFiscalUpdate() {
 $("#calculateFiscal")?.addEventListener("click", calculateFiscalUpdate);
 
 // Initial Load
+loadCalculatorState();
 refresh();
