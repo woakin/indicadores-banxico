@@ -116,6 +116,7 @@ h3 {
     border-radius: var(--card-radius);
     padding: 16px;
     box-shadow: var(--shadow);
+    margin-bottom: 12px;
 }
 
 .section-header {

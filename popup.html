@@ -10,13 +10,14 @@
   <div class="shell">
     <nav class="nav-container">
       <div class="tabs">
-        <button class="tab-btn active" data-target="mainView">Indicadores</button>
-        <button class="tab-btn" data-target="fiscalView">Actualización Fiscal</button>
+        <button class="tab-btn active" data-target="marketView">Mercado</button>
+        <button class="tab-btn" data-target="calculatorsView">Calculadoras</button>
+        <button class="tab-btn" data-target="settingsView">Configuración</button>
       </div>
     </nav>
 
-    <!-- Pestaña Principal: Indicadores y Calculadora UDI -->
-    <div id="mainView" class="view-content">
+    <!-- Pestaña 1: Mercado (Indicadores + Salud Financiera) -->
+    <div id="marketView" class="view-content">
       <div class="section">
         <div class="section-header">
           <div>
@@ -30,7 +31,6 @@
         </div>
 
         <div id="indicatorCards" class="indicator-cards">
-          <!-- Las tarjetas se generan dinámicamente desde popup.js -->
           <p class="muted" style="text-align:center">Cargando indicadores...</p>
         </div>
       </div>
@@ -57,6 +57,13 @@
         </div>
       </div>
 
+      <p class="muted" style="text-align: center; margin-top: 8px;">
+        Fuente: SIE Banxico &middot; <a href="https://alasha.biz" target="_blank" class="link">alasha.biz</a>
+      </p>
+    </div>
+
+    <!-- Pestaña 2: Calculadoras (UDIs + Fiscal) -->
+    <div id="calculatorsView" class="view-content" style="display:none">
       <!-- Calculadora de UDIs -->
       <div class="section">
         <div class="section-header">
@@ -80,13 +87,6 @@
         <div id="calcDate" class="muted" style="text-align:center; margin-top:12px; font-size: 11px;"></div>
       </div>
 
-      <p class="muted" style="text-align: center; margin-top: 8px;">
-        Fuente: SIE Banxico &middot; <a href="https://alasha.biz" target="_blank" class="link">alasha.biz</a>
-      </p>
-    </div>
-
-    <!-- Pestaña: Actualización Fiscal -->
-    <div id="fiscalView" style="display:none">
       <div class="section">
         <div class="section-header">
           <h3>Actualización Fiscal (INPC)</h3>
@@ -123,6 +123,21 @@
         </div>
       </div>
       <p class="caption">Basado en Serie SP1 (INPC) &middot; Banxico</p>
+    </div>
+
+    <!-- Pestaña 3: Configuración -->
+    <div id="settingsView" class="view-content" style="display:none">
+      <div class="section">
+        <div class="section-header">
+          <h3>Ajustes Rápidos</h3>
+        </div>
+        <p class="muted" style="margin-bottom: 24px;">Configura el comportamiento de la extensión y tu acceso al SIE
+          Banxico.</p>
+
+        <button id="openAdvancedSettings" class="btn btn-hero" style="width: 100%; padding: 14px;">
+          Configuración Avanzada
+        </button>
+      </div>
     </div>
 
     <!-- Vista de Historial (View Switcher) -->

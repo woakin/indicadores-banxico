@@ -455,7 +455,11 @@ $("#refresh")?.addEventListener("click", () => refresh(true));
 
 $("#backToMain")?.addEventListener("click", () => {
   $("#historicalView").style.display = "none";
-  $("#mainView").style.display = "block";
+  $("#marketView").style.display = "block";
+});
+
+$("#openAdvancedSettings")?.addEventListener("click", () => {
+  chrome.tabs.create({ url: "onboarding.html" });
 });
 
 $("#calcAmount")?.addEventListener("input", updateCalculator);
@@ -469,13 +473,18 @@ $("#swapMode")?.addEventListener("click", () => {
   saveCalculatorState();
 });
 
+const views = ["marketView", "calculatorsView", "settingsView"];
 document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     const target = btn.dataset.target;
-    $("#mainView").style.display = target === "mainView" ? "block" : "none";
-    $("#fiscalView").style.display = target === "fiscalView" ? "block" : "none";
+
+    views.forEach(v => {
+      const el = $(`#${v}`);
+      if (el) el.style.display = v === target ? "block" : "none";
+    });
+
     $("#historicalView").style.display = "none";
   });
 });
