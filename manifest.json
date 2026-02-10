@@ -14,7 +14,8 @@
   ],
   "host_permissions": [
     "https://www.banxico.org.mx/*",
-    "https://anterior.banxico.org.mx/*"
+    "https://anterior.banxico.org.mx/*",
+    "https://www.alphavantage.co/*"
   ],
   "background": {
     "service_worker": "background.js",

@@ -1,4 +1,4 @@
-import { DEFAULT_SERIES, ANALYSIS_SERIES } from './constants.js';
+import { DEFAULT_SERIES, ANALYSIS_SERIES, AV_CATALOG } from './constants.js';
 
 const $ = s => document.querySelector(s);
 
@@ -33,10 +33,11 @@ async function copyToClipboard(val, date) {
 
 function fmtValue(cfg, datoStr) {
   if (!datoStr || datoStr === "N/E") return "—";
-  // Robust cleaning: remove everything except numbers, dots and minus sign
-  const cleanStr = datoStr.replace(/[^0-9.-]/g, "");
+
+  // Replace comma with dot for decimal handling, then clean non-numeric chars
+  const cleanStr = datoStr.replace(",", ".").replace(/[^0-9.-]/g, "");
   const x = Number(cleanStr);
-  if (!isFinite(x)) return datoStr;
+  if (isNaN(x)) return datoStr;
 
   const d = cfg.decimals !== undefined ? cfg.decimals : 2;
 
@@ -163,6 +164,17 @@ function render(rows, containerOrWarn = false) {
 
     info.appendChild(title);
     info.appendChild(date);
+
+    // Error Indicator
+    if (r.error) {
+      const errIcon = document.createElement("span");
+      errIcon.textContent = "⚠️";
+      errIcon.style.cursor = "help";
+      errIcon.title = `Error: ${r.error} (Mostrando último dato guardado)`;
+      errIcon.style.marginLeft = "6px";
+      info.appendChild(errIcon);
+    }
+
     card.appendChild(info);
 
     // Right side: Value, Variation, Actions
@@ -181,22 +193,30 @@ function render(rows, containerOrWarn = false) {
     value.textContent = r.value;
 
     // Volatility Badge
-    if (r.val && r.prev && r.date && r.prevDate) {
+    let delta = r.variation;
+    const canCalculate = r.val && r.prev && r.date && r.prevDate;
+
+    if (delta !== null && delta !== undefined || canCalculate) {
       try {
-        const v1 = parseFloat(r.val.replace(",", "."));
-        const v2 = parseFloat(r.prev.replace(",", "."));
-        const delta = ((v1 - v2) / v2) * 100;
+        if (delta === null || delta === undefined) {
+          const v1 = parseFloat(r.val.replace(",", "."));
+          const v2 = parseFloat(r.prev.replace(",", "."));
+          delta = ((v1 - v2) / v2) * 100;
+        }
 
         const badge = document.createElement("span");
         badge.className = "variation-badge";
 
-        const d1 = parseDmx(r.date);
-        const d2 = parseDmx(r.prevDate);
-        const diffDays = Math.abs(d1 - d2) / (1000 * 60 * 60 * 24);
-
         let labelText = "vs cierre";
-        if (diffDays > 25) labelText = "anualizada";
-        else if (diffDays > 3) labelText = "sem ant.";
+        if (r.date && r.prevDate) {
+          const d1 = parseDmx(r.date);
+          const d2 = parseDmx(r.prevDate);
+          const diffDays = Math.abs(d1 - d2) / (1000 * 60 * 60 * 24);
+          if (diffDays > 25) labelText = "anualizada";
+          else if (diffDays > 3) labelText = "sem ant.";
+        } else if (r.id?.startsWith("AV_")) {
+          labelText = "hoy";
+        }
 
         const icon = delta > 0 ? "↑" : delta < 0 ? "↓" : "";
         const color = delta > 0 ? "var(--secondary)" : delta < 0 ? "var(--destructive)" : "var(--text-muted)";
@@ -206,7 +226,7 @@ function render(rows, containerOrWarn = false) {
         valueRow.appendChild(value);
         valueRow.appendChild(badge);
       } catch (err) {
-        console.warn("[Popup] Variation calculation failed:", err);
+        console.warn("[Popup] Variation display failed:", err);
         valueRow.appendChild(value);
       }
     } else {
@@ -253,21 +273,21 @@ async function refresh(force = false) {
   if (force) document.body.classList.add("loading");
 
   const storage = await chrome.storage.local.get([
-    "sieToken", "sieSeries", "lastUpdated", "cachedSeriesData"
+    "sieToken", "avToken", "sieSeries", "lastUpdated", "cachedSeriesData"
   ]);
-  const { sieToken, sieSeries, lastUpdated, cachedSeriesData } = storage;
+  const { sieToken, avToken, sieSeries, lastUpdated, cachedSeriesData } = storage;
 
-  // 1. Initial configuration check
-  if (!sieToken) {
-    render([{ name: "Falta configurar Token", value: "—", date: "—" }], true);
-    document.body.classList.remove("loading");
-    return;
-  }
+  // 1. SILENT Warning Toggle (Don't block the whole UI)
+  const showSieWarning = !sieToken;
 
   // 2. Immediate Render from Cache (if available)
   if (cachedSeriesData && cachedSeriesData.length > 0) {
     console.log("[Popup] Rendering from cache...");
     renderData(cachedSeriesData, sieSeries, lastUpdated);
+
+    // Toggle warning if sieToken is missing
+    const warningEl = $("#warning");
+    if (warningEl) warningEl.style.display = showSieWarning ? "block" : "none";
 
     // Check Age for Silent Update (1 hour = 3600000ms)
     const isStale = lastUpdated && (Date.now() - lastUpdated > 3600000);
@@ -275,9 +295,15 @@ async function refresh(force = false) {
       console.log("[Popup] Cache is stale, triggering silent refresh...");
       chrome.runtime.sendMessage({ type: "REFRESH_DATA" });
     }
+  } else if (!sieToken && !avToken) {
+    // No cache AND no tokens: show configuration prompt
+    render([{ name: "Configura tus Tokens", value: "—", date: "Haz clic en Configuración" }], true);
+    document.body.classList.remove("loading");
+    return;
   } else {
-    // No data at all, force a visible refresh
+    // No data at all, but we have some token, force a visible refresh
     console.log("[Popup] No cached data, forcing initial refresh...");
+    chrome.runtime.sendMessage({ type: "REFRESH_DATA" });
     if (!force) return refresh(true);
   }
 
@@ -288,14 +314,22 @@ async function refresh(force = false) {
   const isOldFormat = cachedSeriesData?.some(s => s.idSerie && !s.id);
 
   if (!force && (isOldFormat || !hasAllMandatory)) {
-    console.warn("[Popup] Missing mandatory data or old format. Forcing refresh...");
-    return refresh(true);
+    console.warn("[Popup] Missing mandatory data or old format. Triggering background refresh...");
+    chrome.runtime.sendMessage({ type: "REFRESH_DATA" });
+    return refresh(true); // Enter force mode to show loader and prevent re-entry
+  }
+
+  // If we are in force mode, we already triggered REFRESH_DATA or were called with it
+  if (force) {
+    console.log("[Popup] Force mode: ensuring background is working...");
+    chrome.runtime.sendMessage({ type: "REFRESH_DATA" });
   }
 
   document.body.classList.remove("loading");
 }
 
 function renderData(cachedSeriesData, sieSeries, lastUpdated) {
+  if (!cachedSeriesData) cachedSeriesData = [];
   const byId = new Map(cachedSeriesData.map(s => [s.id, s]));
 
   // Update badge
@@ -305,9 +339,12 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
     badge.textContent = `Actualizado: ${mins < 1 ? "Ahora" : "Hace " + mins + " min"}`;
   }
 
-  // Synchronization: Merge storage data with latest DEFAULT_SERIES metadata
-  let list = (Array.isArray(sieSeries) ? sieSeries : DEFAULT_SERIES).map(s => {
-    const latest = DEFAULT_SERIES.find(d => d.id === s.id);
+  // Synchronization: Merge storage data with latest DEFAULT_SERIES and AV_CATALOG metadata
+  const allMetadata = [...DEFAULT_SERIES, ...AV_CATALOG];
+  const currentList = (Array.isArray(sieSeries) && sieSeries.length > 0) ? sieSeries : DEFAULT_SERIES;
+
+  let list = currentList.map(s => {
+    const latest = allMetadata.find(d => d.id === s.id);
     return latest ? { ...s, ...latest } : s;
   });
 
@@ -323,6 +360,8 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
       val: s.val,
       prev: s.prev,
       prevDate: s.prevDate,
+      variation: s.variation,
+      error: s.error,
       config: cfg
     };
   });
@@ -349,6 +388,11 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
   }
 
   render(rows, $("#indicatorCards"));
+
+  // Check for Alpha Vantage Rate Limits in ANY row (Indicator Cards)
+  const hasRateLimit = rows.some(r => r.error && r.error.includes("Límite"));
+  const rateNotice = $("#rateLimitNotice");
+  if (rateNotice) rateNotice.style.display = hasRateLimit ? "block" : "none";
 
   // --- Rendering Analysis Tab ---
   const expectationsList = ANALYSIS_SERIES.filter(s => s.category === "expectation");

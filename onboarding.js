@@ -1,264 +1,370 @@
-// onboarding.js – personalización siempre visible + sugerencia automática
-import { DEFAULT_SERIES, SERIES_ID_REGEX, BANXICO_API_BASE } from './constants.js';
+import { DEFAULT_SERIES, SERIES_ID_REGEX, BANXICO_API_BASE, ALPHAVANTAGE_API_BASE, INEGI_API_BASE, AV_CATALOG, INEGI_CATALOG } from './constants.js';
 
 (() => {
   const $ = s => document.querySelector(s);
-  const sayToken = t => { const m = $("#msg"); if (m) m.textContent = t || ""; };
-  const saySeries = t => { const m = $("#seriesMsg"); if (m) m.textContent = t || ""; };
+  const $$ = s => document.querySelectorAll(s);
 
-  // State for tracking if we're in edit mode
-  let editingSeriesId = null;
+  // --- State ---
+  let activeProvider = "banxico";
+  let sieToken = "";
+  let avToken = "";
+  let inegiToken = "";
+  let sieSeries = [];
+  let editingIndex = null;
 
-  // Mostrar controles según si hay token
-  function updateFormatControls(hasToken) {
-    // defensive: element may not exist if DOM not ready
-    const manualFormat = $("#manualFormat");
-    if (manualFormat && manualFormat.style) manualFormat.style.display = "flex";
+  // --- UI Helpers ---
+  const updateGlobalMsg = (txt) => { const el = $("#globalMsg"); if (el) el.textContent = txt || ""; };
+
+  function setLock(provider, isLocked) {
+    const ops = $(`#${provider}Ops`);
+    const status = $(`#status${provider.charAt(0).toUpperCase() + provider.slice(1)}`);
+    if (ops) ops.classList.toggle("locked", isLocked);
+    if (status) status.classList.toggle("online", !isLocked);
   }
 
-  // Update edit mode UI
-  function setEditMode(seriesId, seriesTitle) {
-    editingSeriesId = seriesId;
-    const indicator = $("#editModeIndicator");
-    const addBtn = $("#addById");
-    const cancelBtn = $("#cancelEdit");
-    
-    if (!indicator || !addBtn || !cancelBtn) return;
+  function switchProvider(brand) {
+    activeProvider = brand;
+    $$(".nav-link").forEach(l => l.classList.remove("active"));
+    $(`.nav-link[data-provider="${brand}"]`)?.classList.add("active");
 
-    if (seriesId) {
-      indicator.style.display = "block";
-      const editingLabel = $("#editingSeriesName");
-      if (editingLabel) editingLabel.textContent = `${seriesTitle} (${seriesId})`;
-      addBtn.textContent = "Guardar cambios";
-      cancelBtn.style.display = "inline-block";
-    } else {
-      indicator.style.display = "none";
-      addBtn.textContent = "Añadir serie";
-      cancelBtn.style.display = "none";
-      editingSeriesId = null;
-    }
+    $$(".provider-view").forEach(v => v.classList.add("hidden"));
+    $(`#view${brand.charAt(0).toUpperCase() + brand.slice(1)}`)?.classList.remove("hidden");
+
+    const titles = { banxico: "Banxico (México)", av: "Alpha Vantage (Global)", inegi: "INEGI (Estadísticas)" };
+    $("#providerTitle").textContent = titles[brand] || "Configuración";
   }
 
-  chrome.storage.local.get(["sieToken", "sieSeries"], ({ sieToken = "", sieSeries = [] }) => {
-    $("#token").value = sieToken;
-    updateFormatControls(!!sieToken);
+  // --- Initialization ---
+  chrome.storage.local.get(["sieToken", "avToken", "inegiToken", "sieSeries"], (data) => {
+    sieToken = data.sieToken || "";
+    avToken = data.avToken || "";
+    inegiToken = data.inegiToken || "";
+    sieSeries = data.sieSeries || [];
 
-    if (!Array.isArray(sieSeries) || sieSeries.length === 0) {
-      chrome.storage.local.set({ sieSeries: DEFAULT_SERIES }, () => renderSelected(DEFAULT_SERIES));
-    } else {
-      renderSelected(sieSeries);
+    // Fill inputs
+    if ($("#token")) $("#token").value = sieToken;
+    if ($("#avToken")) $("#avToken").value = avToken;
+    if ($("#inegiToken")) $("#inegiToken").value = inegiToken;
+
+    // Set locked states
+    setLock("banxico", !sieToken);
+    setLock("av", !avToken);
+    setLock("inegi", !inegiToken);
+
+    // Initial render
+    if (sieSeries.length === 0) {
+      sieSeries = DEFAULT_SERIES;
+      chrome.storage.local.set({ sieSeries });
     }
+    renderSelected(sieSeries);
+    renderAvCatalog();
+    renderInegiCatalog();
   });
 
-  $("#save")?.addEventListener("click", async () => {
-    const t = $("#token").value.trim();
-    await chrome.storage.local.set({ sieToken: t });
-    sayToken(t ? "Token guardado." : "Token borrado.");
+  // --- Sidebar Events ---
+  $$(".nav-link").forEach(link => {
+    link.addEventListener("click", (e) => {
+      const p = e.currentTarget.getAttribute("data-provider");
+      if (p) switchProvider(p);
+    });
   });
 
-  $("#test")?.addEventListener("click", async () => {
+  // --- Connection Logic (Banxico) ---
+  $("#testSie")?.addEventListener("click", async () => {
     const t = $("#token").value.trim();
-    if (!t) { sayToken("Ingresa un token SIE."); return; }
-    sayToken("Probando token…");
+    const msg = $("#msgSie");
+    if (!t) { msg.textContent = "⚠️ Ingresa un token."; return; }
+    msg.textContent = "⏳ Probando...";
     try {
-      const url = `https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/oportuno?mediaType=json&token=${encodeURIComponent(t)}`;
+      const url = `${BANXICO_API_BASE}/series/SF43718/datos/oportuno?mediaType=json&token=${encodeURIComponent(t)}`;
       const r = await fetch(url, { cache: "no-store" });
-      sayToken(r.ok ? "Token válido." : `HTTP ${r.status}`);
-    } catch (e) { sayToken(`Error: ${e.message}`); }
+      if (r.ok) {
+        msg.textContent = "✅ Conexión exitosa.";
+        setLock("banxico", false);
+      } else {
+        msg.textContent = `❌ Error ${r.status}`;
+      }
+    } catch (e) { msg.textContent = "❌ Error de red."; }
   });
 
-  $("#open")?.addEventListener("click", () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL("popup.html") });
+  $("#saveBanxico")?.addEventListener("click", async () => {
+    sieToken = $("#token").value.trim();
+    await chrome.storage.local.set({ sieToken });
+    setLock("banxico", !sieToken);
+    updateGlobalMsg("Configuración de Banxico guardada.");
   });
 
+  // --- Connection Logic (AV) ---
+  $("#testAv")?.addEventListener("click", async () => {
+    const t = $("#avToken").value.trim();
+    const msg = $("#msgAv");
+    if (!t) { msg.textContent = "⚠️ Ingresa una Key."; return; }
+    msg.textContent = "⏳ Probando...";
+    try {
+      const url = `${ALPHAVANTAGE_API_BASE}?function=GLOBAL_QUOTE&symbol=IBM&apikey=${encodeURIComponent(t)}`;
+      const r = await fetch(url, { cache: "no-store" });
+      const json = await r.json();
+      if (json["Error Message"]) throw new Error("Key inválida.");
+      msg.textContent = "✅ Conexión exitosa.";
+      setLock("av", false);
+    } catch (e) { msg.textContent = `❌ ${e.message}`; }
+  });
+
+  $("#saveAv")?.addEventListener("click", async () => {
+    avToken = $("#avToken").value.trim();
+    await chrome.storage.local.set({ avToken });
+    setLock("av", !avToken);
+    updateGlobalMsg("Configuración de Alpha Vantage guardada.");
+  });
+
+  // --- Connection Logic (INEGI) ---
+  $("#testInegi")?.addEventListener("click", async () => {
+    const t = $("#inegiToken").value.trim();
+    const msg = $("#msgInegi");
+    if (!t) { msg.textContent = "⚠️ Ingresa tu Token."; return; }
+    msg.textContent = "⏳ Probando...";
+    try {
+      const url = `${INEGI_API_BASE}/INDICATOR/1002000001/es/00/true/BISE/2.0/${encodeURIComponent(t)}?type=json`;
+      const r = await fetch(url, { cache: "no-store" });
+      if (r.ok) {
+        msg.textContent = "✅ Conexión exitosa.";
+        setLock("inegi", false);
+      } else {
+        msg.textContent = `❌ Error ${r.status}`;
+      }
+    } catch (e) { msg.textContent = "❌ Error de red."; }
+  });
+
+  $("#saveInegi")?.addEventListener("click", async () => {
+    inegiToken = $("#inegiToken").value.trim();
+    await chrome.storage.local.set({ inegiToken });
+    setLock("inegi", !inegiToken);
+    updateGlobalMsg("Configuración de INEGI guardada.");
+  });
+
+  // --- Adding Indicators ---
   $("#addById")?.addEventListener("click", async () => {
     const id = $("#seriesId").value.trim().toUpperCase();
-    if (!SERIES_ID_REGEX.test(id)) {
-      saySeries("ID inválido. Ejemplos: SF43718, SL11298, SG61745…");
-      return;
-    }
-
     const type = $("#seriesType").value;
-    if (type === "currency" && !$("#seriesCurrency").value.trim()) {
-      saySeries("Para moneda, especifica el código (ej: MXN, USD).");
+    if (!SERIES_ID_REGEX.test(id)) {
+      $("#seriesMsg").textContent = "❌ ID inválido.";
       return;
     }
 
-    const st = await chrome.storage.local.get(["sieToken", "sieSeries"]);
-    let list = Array.isArray(st.sieSeries) ? st.sieSeries : [];
-    const existingIndex = list.findIndex(s => s.id === id);
-    const isEdit = editingSeriesId !== null;
+    if (editingIndex === null && sieSeries.some(s => s.id === id)) {
+      $("#seriesMsg").textContent = "⚠️ Esta serie ya existe.";
+      return;
+    }
 
-    let title = id;
-    let currency = $("#seriesCurrency").value.trim().toUpperCase() || undefined;
-    let decimals = Number($("#seriesDecimals").value) || 2;
-    let periodicity = "Desconocida";
-    let figure = "Sin tipo";
-    const hasToken = !!st.sieToken?.trim();
+    // Basic heuristic for periodicity/figure based on common Banxico IDs
+    const item = {
+      id,
+      title: id,
+      type,
+      currency: type === 'currency' ? 'MXN' : undefined,
+      decimals: 2,
+      periodicity: "Diaria",
+      figure: "Sin tipo"
+    };
 
-    // Sugerencia automática (solo si hay token y no es edición)
-    if (hasToken && !isEdit) {
+    // Try to get metadata if possible
+    if (activeProvider === "banxico" && sieToken) {
       try {
-        const metaUrl = `${BANXICO_API_BASE}/series/${id}?mediaType=json&token=${encodeURIComponent(st.sieToken)}`;
-        const metaRes = await fetch(metaUrl, { cache: "no-store" });
-        if (metaRes.ok) {
-          const metaJson = await metaRes.json();
-          const serie = metaJson?.bmx?.series?.[0];
-          if (serie) {
-            title = serie.titulo || id;
-            periodicity = serie.periodicidad || "Desconocida";
-            figure = serie.cifra || "Sin tipo";
+        const r = await fetch(`${BANXICO_API_BASE}/series/${id}?mediaType=json&token=${encodeURIComponent(sieToken)}`);
+        const json = await r.json();
+        const meta = json?.bmx?.series?.[0];
+        if (meta) {
+          item.title = meta.titulo || id;
+          item.periodicity = meta.periodicidad || "Desconocida";
+          item.figure = meta.cifra || "Sin tipo";
 
-            const texto = `${(serie.unidad || "")} ${(serie.cifra || "")}`.toLowerCase();
-
-            let suggestedType = "number";
-            let suggestedCurrency = undefined;
-            let suggestedDecimals = 2;
-
-            if (texto.includes("porcentaje") || texto.includes("por ciento") || texto.includes("%")) {
-              suggestedType = "percent";
-              suggestedDecimals = 4;
-            } else if (texto.includes("pesos") || texto.includes("dólares") || texto.includes("millones") || texto.includes("miles")) {
-              suggestedType = "currency";
-              suggestedCurrency = texto.includes("dólares") ? "USD" : "MXN";
-              suggestedDecimals = texto.includes("miles") || texto.includes("millones") ? 0 : 2;
-            } else if (texto.includes("índice") || texto.includes("udis")) {
-              suggestedType = "number";
-              suggestedDecimals = 4;
-            }
-
-            // Aplicamos sugerencia en los controles
-            $("#seriesType").value = suggestedType;
-            $("#seriesCurrency").value = suggestedCurrency || "";
-            $("#seriesDecimals").value = suggestedDecimals;
-            type = suggestedType;
-            currency = suggestedCurrency;
-            decimals = suggestedDecimals;
-
-            saySeries("Sugerencia automática aplicada. Cambia si lo prefieres.");
+          // Auto-format suggestion
+          const text = `${meta.unidad || ""} ${meta.cifra || ""}`.toLowerCase();
+          if (text.includes("%") || text.includes("porcentaje")) {
+            item.type = "percent";
+            item.decimals = 4;
+          } else if (text.includes("pesos") || text.includes("dólares")) {
+            item.type = "currency";
+            item.currency = text.includes("dólares") ? "USD" : "MXN";
           }
         }
-      } catch (e) { /* silencioso */ }
-    } else if (isEdit) {
-      title = list[existingIndex].title;
-      periodicity = list[existingIndex].periodicity;
-      figure = list[existingIndex].figure;
+      } catch (e) { }
+    } else if (activeProvider === "av" && avToken) {
+      try {
+        const r = await fetch(`${ALPHAVANTAGE_API_BASE}?function=SYMBOL_SEARCH&keywords=${id.replace("AV_", "")}&apikey=${encodeURIComponent(avToken)}`);
+        const json = await r.json();
+        const best = json?.bestMatches?.[0];
+        if (best) {
+          item.title = best["2. name"] || id;
+          item.currency = best["8. currency"] || "USD";
+        }
+      } catch (e) { }
     }
 
-    const item = { id, title, type, currency, decimals, periodicity, figure };
-
-    if (isEdit) {
-      list[existingIndex] = item;
-      saySeries("Serie actualizada.");
+    if (editingIndex !== null) {
+      sieSeries[editingIndex] = { ...sieSeries[editingIndex], ...item, id: sieSeries[editingIndex].id }; // preserve original ID in edit
+      editingIndex = null;
+      $("#addById").textContent = "Añadir";
     } else {
-      list.push(item);
-      // If title is still just the ID, show a note to the user
-      if (title === id) {
-        saySeries(`Serie añadida (sin token: usa el ID como título). Edítala para cambiar el nombre.`);
-      } else {
-        saySeries("Serie añadida.");
-      }
+      sieSeries.push(item);
     }
 
-    await chrome.storage.local.set({ sieSeries: list });
-    renderSelected(list);
+    await chrome.storage.local.set({ sieSeries });
+    renderSelected(sieSeries);
     $("#seriesId").value = "";
-    setEditMode(null);
+    $("#seriesMsg").textContent = "✅ Guardado.";
   });
 
-  // Cancel edit mode
-  $("#cancelEdit")?.addEventListener("click", () => {
-    setEditMode(null);
-    $("#seriesId").value = "";
-    $("#seriesType").value = "number";
-    $("#seriesCurrency").value = "";
-    $("#seriesDecimals").value = "2";
-    saySeries("Edición cancelada.");
+  $("#addInegiById")?.addEventListener("click", async () => {
+    const rawId = $("#inegiIdInput").value.trim();
+    const id = `INEGI_${rawId}`;
+    const msg = $("#inegiMsg");
+
+    if (!rawId || isNaN(rawId)) {
+      msg.textContent = "❌ ID numérico inválido.";
+      return;
+    }
+
+    if (sieSeries.some(s => s.id === id)) {
+      msg.textContent = "⚠️ Esta serie ya existe.";
+      return;
+    }
+
+    const item = {
+      id,
+      title: `Indicador INEGI ${rawId}`,
+      type: "number",
+      decimals: 2,
+      periodicity: "Variable",
+      figure: "Dato"
+    };
+
+    if (inegiToken) {
+      try {
+        const url = `${INEGI_API_BASE}/INDICATOR/${rawId}/es/00/true/BISE/2.0/${encodeURIComponent(inegiToken)}?type=json`;
+        const r = await fetch(url);
+        const json = await r.json();
+        // INEGI no suele dar el nombre del indicador en el JSON de datos sin metadatos CL_INDICATOR
+        // Por ahora lo dejamos así y el usuario puede ver el ID.
+      } catch (e) { }
+    }
+
+    sieSeries.push(item);
+    await chrome.storage.local.set({ sieSeries });
+    renderSelected(sieSeries);
+    $("#inegiIdInput").value = "";
+    msg.textContent = "✅ Guardado.";
   });
+
+  function renderAvCatalog() {
+    const container = $("#avButtons");
+    if (!container) return;
+    container.innerHTML = "";
+    AV_CATALOG.forEach(item => {
+      const btn = document.createElement("button");
+      btn.className = "chip-btn";
+      btn.textContent = `+ ${item.title}`;
+      btn.addEventListener("click", async () => {
+        if (sieSeries.find(s => s.id === item.id)) {
+          updateGlobalMsg("Ya está en tu tablero.");
+          return;
+        }
+        sieSeries.push(item);
+        await chrome.storage.local.set({ sieSeries });
+        renderSelected(sieSeries);
+        updateGlobalMsg(`Añadido: ${item.title}`);
+      });
+      container.appendChild(btn);
+    });
+  }
+
+  function renderInegiCatalog() {
+    const container = $("#inegiButtons");
+    if (!container) return;
+    container.innerHTML = "";
+    INEGI_CATALOG.forEach(item => {
+      const btn = document.createElement("button");
+      btn.className = "chip-btn";
+      btn.textContent = `+ ${item.title}`;
+      btn.addEventListener("click", async () => {
+        if (sieSeries.find(s => s.id === item.id)) {
+          updateGlobalMsg("Ya está en tu tablero.");
+          return;
+        }
+        sieSeries.push(item);
+        await chrome.storage.local.set({ sieSeries });
+        renderSelected(sieSeries);
+        updateGlobalMsg(`Añadido: ${item.title}`);
+      });
+      container.appendChild(btn);
+    });
+  }
 
   function renderSelected(list) {
-    const box = $("#selected");
-    box.innerHTML = "";
-    if (!list?.length) {
-      box.innerHTML = `<span class="row-sub">Aún no tienes series seleccionadas.</span>`;
-    } else {
-      const listContainer = document.createElement("div");
-      for (let i = 0; i < list.length; i++) {
-        const s = list[i];
-        const item = document.createElement("div");
-        item.className = "series-item";
-        
-        // Content
-        const content = document.createElement("div");
-        content.className = "series-item-content";
-        content.textContent = `${s.title} (${s.id})`;
-        item.appendChild(content);
-        
-        // Actions
-        const actions = document.createElement("div");
-        actions.className = "series-item-actions";
-        
-        // Up arrow
-        const upBtn = document.createElement("button");
-        upBtn.className = "arrow-btn";
-        upBtn.textContent = "▲";
-        upBtn.disabled = i === 0;
-        upBtn.title = "Mover arriba";
-        upBtn.addEventListener("click", async () => {
-          if (i > 0) {
-            [list[i], list[i - 1]] = [list[i - 1], list[i]];
-            await chrome.storage.local.set({ sieSeries: list });
-            renderSelected(list);
-          }
-        });
-        actions.appendChild(upBtn);
-        
-        // Down arrow
-        const downBtn = document.createElement("button");
-        downBtn.className = "arrow-btn";
-        downBtn.textContent = "▼";
-        downBtn.disabled = i === list.length - 1;
-        downBtn.title = "Mover abajo";
-        downBtn.addEventListener("click", async () => {
-          if (i < list.length - 1) {
-            [list[i], list[i + 1]] = [list[i + 1], list[i]];
-            await chrome.storage.local.set({ sieSeries: list });
-            renderSelected(list);
-          }
-        });
-        actions.appendChild(downBtn);
-        
-        // Edit button
-        const editBtn = document.createElement("button");
-        editBtn.className = "edit-btn";
-        editBtn.textContent = "✎";
-        editBtn.title = "Editar formato";
-        editBtn.addEventListener("click", () => {
-          $("#seriesId").value = s.id;
-          $("#seriesType").value = s.type || "number";
-          $("#seriesCurrency").value = s.currency || "";
-          $("#seriesDecimals").value = s.decimals ?? 2;
-          setEditMode(s.id, s.title);
-          saySeries("Edita y presiona Guardar cambios para actualizar.");
-        });
-        actions.appendChild(editBtn);
-        
-        // Delete button
-        const deleteBtn = document.createElement("button");
-        deleteBtn.className = "delete-btn";
-        deleteBtn.textContent = "×";
-        deleteBtn.title = "Eliminar";
-        deleteBtn.addEventListener("click", async () => {
-          const next = list.filter((_, idx) => idx !== i);
-          await chrome.storage.local.set({ sieSeries: next });
-          renderSelected(next);
-        });
-        actions.appendChild(deleteBtn);
-        
-        item.appendChild(actions);
-        listContainer.appendChild(item);
-      }
-      box.appendChild(listContainer);
-    }
+    const container = $("#selected");
+    if (!container) return;
+    container.innerHTML = "";
+
+    list.forEach((s, i) => {
+      const el = document.createElement("div");
+      el.className = "selected-item";
+
+      const isMX = !s.id.startsWith("AV_") && !s.id.startsWith("INEGI_");
+      const isAV = s.id.startsWith("AV_");
+      const isInegi = s.id.startsWith("INEGI_");
+
+      let badgeLabel = "SIE";
+      let badgeClass = "source-mx";
+      if (isAV) { badgeLabel = "AV"; badgeClass = "source-av"; }
+      if (isInegi) { badgeLabel = "INEGI"; badgeClass = "source-av"; }
+
+      const sourceBadge = `<span class="badge-source ${badgeClass}">${badgeLabel}</span>`;
+
+      el.innerHTML = `
+        <div class="selected-item-info">
+          <div class="selected-item-title">${s.title}${sourceBadge}</div>
+          <div class="selected-item-id">${s.id}</div>
+        </div>
+        <div class="actions">
+          <button class="action-btn move-up" title="Subir" ${i === 0 ? 'disabled' : ''}>▲</button>
+          <button class="action-btn move-down" title="Bajar" ${i === list.length - 1 ? 'disabled' : ''}>▼</button>
+          <button class="action-btn edit" title="Editar">✎</button>
+          <button class="action-btn delete" title="Quitar">×</button>
+        </div>
+      `;
+
+      el.querySelector(".move-up")?.addEventListener("click", () => move(i, -1));
+      el.querySelector(".move-down")?.addEventListener("click", () => move(i, 1));
+      el.querySelector(".edit")?.addEventListener("click", () => edit(i));
+      el.querySelector(".delete")?.addEventListener("click", () => del(i));
+
+      container.appendChild(el);
+    });
   }
+
+  function edit(idx) {
+    const s = sieSeries[idx];
+    editingIndex = idx;
+    const isAV = s.id.startsWith("AV_");
+    switchProvider(isAV ? "av" : "banxico");
+
+    $("#seriesId").value = s.id;
+    $("#seriesType").value = s.type || "number";
+    $("#addById").textContent = "Actualizar";
+    updateGlobalMsg(`Editando: ${s.title}`);
+  }
+
+  async function move(idx, step) {
+    const target = idx + step;
+    [sieSeries[idx], sieSeries[target]] = [sieSeries[target], sieSeries[idx]];
+    await chrome.storage.local.set({ sieSeries });
+    renderSelected(sieSeries);
+  }
+
+  async function del(idx) {
+    sieSeries.splice(idx, 1);
+    await chrome.storage.local.set({ sieSeries });
+    renderSelected(sieSeries);
+  }
+
 })();

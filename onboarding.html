@@ -4,25 +4,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Configuración • Indicadores Banxico (SIE)</title>
+  <title>Configuración • Hub de Indicadores</title>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
     href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap"
     rel="stylesheet">
   <style>
     :root {
-      --primary: hsl(210 60% 25%);
-      --secondary: hsl(170 45% 45%);
-      --background: hsl(0 0% 100%);
-      --muted: hsl(210 20% 96%);
-      --border: hsl(210 20% 90%);
-
-      --bg: var(--background);
-      --fg: hsl(210 60% 15%);
-      --text-muted: hsl(210 40% 45%);
+      --primary: #1e293b;
+      --accent: #10b981;
+      --bg-main: #f8fafc;
+      --bg-side: #ffffff;
+      --border: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
       --radius: 12px;
-      --btn-radius: 10px;
-      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      --sidebar-width: 240px;
     }
 
     * {
@@ -31,407 +29,573 @@
 
     body {
       margin: 0;
-      background: var(--muted);
-      color: var(--fg);
+      background: var(--bg-main);
+      color: var(--text-main);
       font-family: 'Manrope', -apple-system, sans-serif;
-      line-height: 1.5;
-    }
-
-    h1,
-    h2,
-    h3,
-    .brand {
-      font-family: 'Poppins', sans-serif;
-      font-weight: 700;
-    }
-
-    .container {
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 48px 24px;
-    }
-
-    .header {
+      height: 100vh;
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 32px;
+      overflow: hidden;
     }
 
-    .brand {
-      font-weight: 700;
-      font-size: 24px;
-      letter-spacing: -0.02em;
-      color: var(--primary);
+    /* --- Sidebar --- */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--bg-side);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 0;
+      flex-shrink: 0;
     }
 
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 4px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-decoration: none;
-      background: var(--bg);
-    }
-
-    .grid {
+    .sidebar-header {
+      padding: 0 24px 24px;
+      border-bottom: 1px solid var(--border);
       margin-bottom: 24px;
     }
 
-    .grid-two {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 24px;
+    .brand {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 800;
+      font-size: 1.25rem;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
-    @media(min-width: 768px) {
-      .grid-two {
-        grid-template-columns: 1.2fr 0.8fr;
-      }
+    .brand span {
+      background: var(--primary);
+      color: white;
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 4px;
     }
 
+    .nav-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      flex-grow: 1;
+    }
+
+    .nav-item {
+      padding: 4px 12px;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      text-decoration: none;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-radius: var(--radius);
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .nav-link:hover {
+      background: #f1f5f9;
+      color: var(--primary);
+    }
+
+    .nav-link.active {
+      background: #e2e8f0;
+      color: var(--primary);
+    }
+
+    .nav-status {
+      margin-left: auto;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #cbd5e1;
+    }
+
+    .nav-status.online {
+      background: var(--accent);
+    }
+
+    /* --- Main Workspace --- */
+    .workspace {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .top-bar {
+      height: 64px;
+      background: white;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 32px;
+      justify-content: space-between;
+    }
+
+    .main-content {
+      flex-grow: 1;
+      padding: 32px;
+      overflow-y: auto;
+      display: flex;
+      gap: 32px;
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .work-area {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .selection-panel {
+      width: 320px;
+      flex-shrink: 0;
+    }
+
+    /* --- Cards & UI Elements --- */
     .card {
+      background: white;
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 32px;
-      background: var(--bg);
+      padding: 24px;
       box-shadow: var(--shadow);
+      margin-bottom: 24px;
     }
 
-    h1 {
-      font-size: 20px;
-      margin: 0 0 12px;
+    .card-header {
+      margin-bottom: 20px;
     }
 
-    h2 {
-      font-size: 18px;
-      margin: 0 0 12px;
+    .card h2 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.25rem;
+      margin: 0;
     }
 
-    p {
+    .card p {
       color: var(--text-muted);
-      margin: 0 0 16px;
-      font-size: 14px;
+      font-size: 0.875rem;
+      margin: 4px 0 0;
+    }
+
+    .section-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 24px 0;
+    }
+
+    .locked-overlay {
+      position: relative;
+    }
+
+    .locked-overlay.locked>*:not(.unlock-notice) {
+      opacity: 0.4;
+      pointer-events: none;
+      filter: grayscale(1);
+    }
+
+    .unlock-notice {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255, 255, 255, 0.9);
+      padding: 16px 24px;
+      border-radius: var(--radius);
+      border: 1px dashed var(--border);
+      text-align: center;
+      z-index: 10;
+      width: 80%;
+      display: none;
+    }
+
+    .locked-overlay.locked .unlock-notice {
+      display: block;
+    }
+
+    /* --- Forms & Buttons --- */
+    .form-group {
+      margin-bottom: 16px;
     }
 
     label {
       display: block;
-      font-weight: 600;
-      margin: 16px 0 8px;
-      font-size: 14px;
+      font-weight: 700;
+      font-size: 0.825rem;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
     }
 
     input[type=text],
-    input[type=search],
     select {
       width: 100%;
       padding: 12px 16px;
       border: 1px solid var(--border);
-      border-radius: var(--btn-radius);
-      font-size: 14px;
-      background: var(--bg);
-      transition: border-color 0.3s, box-shadow 0.2s;
-    }
-
-    input:focus,
-    select:focus {
-      outline: none;
-      border-color: var(--secondary);
-      box-shadow: 0 0 0 3px hsla(170, 45%, 45%, 0.15);
-    }
-
-    .row {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      align-items: flex-end;
-      margin-top: 16px;
-    }
-
-    button {
-      appearance: none;
-      border: none;
-      background: var(--primary);
-      color: #FFF;
-      border-radius: var(--btn-radius);
-      padding: 12px 24px;
-      font-weight: 600;
-      cursor: pointer;
-      font-size: 14px;
+      border-radius: 8px;
+      font-size: 0.95rem;
       transition: all 0.2s;
     }
 
-    button:hover {
-      background: hsl(210 60% 20%);
+    input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(30, 41, 59, 0.1);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      font-size: 0.9rem;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #0f172a;
       transform: translateY(-1px);
     }
 
-    button.secondary {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--fg);
-    }
-
-    button.secondary:hover {
-      border-color: var(--secondary);
-      background: var(--muted);
-    }
-
-    button:focus-visible {
-      outline: 3px solid hsla(210, 60%, 25%, 0.3);
-      outline-offset: 2px
-    }
-
-    .note {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 8px
-    }
-
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: .5rem
-    }
-
-    .chip {
-      background: var(--muted);
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: .35rem .6rem;
-      display: inline-flex;
-      gap: .5rem;
-      align-items: center
-    }
-
-    button.secondary:hover {
-      border-color: #CBD5E1;
-      background: #F8FAFC;
-    }
-
-    button:focus-visible {
-      outline: 3px solid rgba(59, 130, 246, 0.3);
-      outline-offset: 2px
-    }
-
-    .note {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 8px
-    }
-
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: .5rem
-    }
-
-    .chip {
-      background: #f3f4f6;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: .35rem .6rem;
-      display: inline-flex;
-      gap: .5rem;
-      align-items: center
-    }
-
-    .chip-x {
-      border: 0;
+    .btn-outline {
       background: transparent;
-      cursor: pointer;
-      font-size: 14px
+      border: 1px solid var(--border);
+      color: var(--text-main);
     }
 
-    .row-sub {
-      color: #6b7280;
-      font-size: .875rem
+    .btn-outline:hover {
+      background: #f8fafc;
+      border-color: var(--text-muted);
     }
 
-    .series-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #f3f4f6;
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin: 6px 0
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
     }
 
-    .series-item-content {
-      flex: 1
+    .btn-ghost:hover {
+      background: #f1f5f9;
+      color: var(--primary);
     }
 
-    .series-item-actions {
-      display: flex;
-      gap: 4px;
-      align-items: center
-    }
-
-    .arrow-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 16px;
-      padding: 4px 6px;
-      color: #64748b;
-      transition: color 0.2s
-    }
-
-    .arrow-btn:hover:not(:disabled) {
-      color: #0f172a
-    }
-
-    .arrow-btn:disabled {
-      opacity: 0.3;
-      cursor: not-allowed
-    }
-
-    .edit-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 14px;
-      padding: 4px 6px;
-      color: #64748b;
-      transition: color 0.2s
-    }
-
-    .edit-btn:hover {
-      color: #0f172a
-    }
-
-    .delete-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 16px;
-      padding: 4px 6px;
-      color: #64748b;
-      transition: color 0.2s
-    }
-
-    .edit-mode {
-      background: #fef3c7;
-      border: 1px solid #fde68a;
-      border-radius: 12px;
-      padding: 12px
-    }
-
-    .edit-mode-label {
+    .status-msg {
+      font-size: 0.8rem;
+      margin-top: 8px;
       display: flex;
       align-items: center;
       gap: 6px;
+    }
+
+    /* --- Chips & Lists --- */
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip-btn {
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.8rem;
       font-weight: 600;
-      color: #92400e;
-      margin-bottom: 6px;
-      font-size: 13px
+      cursor: pointer;
+      transition: all 0.2s;
     }
 
-    .edit-mode-label::before {
-      content: "✏️"
+    .chip-btn:hover {
+      background: white;
+      border-color: var(--primary);
     }
 
-    footer a {
-      color: var(--fg);
-      text-decoration: none;
-      border-bottom: 1px solid var(--border)
+    .selected-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
 
-    .w-120 {
-      width: 120px
+    .selected-item {
+      background: white;
+      border: 1px solid var(--border);
+      padding: 12px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
-    .w-90 {
-      width: 90px
+    .selected-item-info {
+      flex: 1;
+      min-width: 0;
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px
+    .selected-item-title {
+      font-weight: 700;
+      font-size: 0.85rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    th,
-    td {
-      padding: 6px 4px;
-      border-bottom: 1px solid var(--border);
-      text-align: left
+    .selected-item-id {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .action-btn {
+      background: none;
+      border: none;
+      padding: 4px;
+      cursor: pointer;
+      color: var(--text-muted);
+      border-radius: 4px;
+    }
+
+    .action-btn:hover {
+      background: #f1f5f9;
+      color: var(--primary);
+    }
+
+    .badge-source {
+      font-size: 0.6rem;
+      padding: 1px 4px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      font-weight: 800;
+      margin-left: 6px;
+    }
+
+    .source-mx {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .source-av {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .hidden {
+      display: none !important;
     }
   </style>
 </head>
 
 <body>
-  <div class="container">
-    <div class="header">
-      <div class="brand">Indicadores Banxico <span class="badge">SIE</span></div>
-      <a href="https://alasha.biz" target="_blank" rel="noopener" class="badge">alasha.biz</a>
+  <!-- Sidebar Navigation -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="brand">Indicadores <span>HUB</span></div>
     </div>
-    <div class="grid">
-      <div class="card">
-        <h1>Token SIE</h1>
-        <p>Obtén tu token gratuito en la <a href="https://www.banxico.org.mx/SieAPIRest/service/v1/token"
-            target="_blank" rel="noopener">API del SIE</a>.</p>
-        <label for="token">Token</label>
-        <input id="token" type="text" placeholder="Pega aquí tu token">
-        <div class="row" style="margin-top:8px">
-          <button id="save">Guardar</button>
-          <button id="test" class="secondary">Probar</button>
-        </div>
-        <div id="msg" class="note" role="status" aria-live="polite"></div>
-      </div>
+    <ul class="nav-list">
+      <li class="nav-item">
+        <a class="nav-link active" data-provider="banxico">
+          🏠 <span>Banxico (México)</span>
+          <div id="statusBanxico" class="nav-status"></div>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-provider="av">
+          🌍 <span>Alpha Vantage (Global)</span>
+          <div id="statusAv" class="nav-status"></div>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-provider="inegi">
+          📈 <span>INEGI (Estadísticas)</span>
+          <div id="statusInegi" class="nav-status"></div>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" style="opacity: 0.5; cursor: not-allowed;">
+          📊 <span>FRED (Próximamente)</span>
+        </a>
+      </li>
+    </ul>
+    <div style="padding: 24px; border-top: 1px solid var(--border);">
+      <p class="note" style="margin:0; font-size: 11px;">Hecho por <a href="https://alasha.biz" target="_blank"
+          style="color:inherit">Alasha Collective</a></p>
     </div>
-    <div class="grid-two">
-      <div class="card">
-        <h1>Añadir serie por ID</h1>
-        <div id="editModeIndicator" style="display:none">
-          <div class="edit-mode">
-            <div class="edit-mode-label">Editando: <span id="editingSeriesName"></span></div>
+  </aside>
+
+  <!-- Workspace area -->
+  <main class="workspace">
+    <header class="top-bar">
+      <h2 id="providerTitle">Banxico (México)</h2>
+      <div id="globalMsg" class="status-msg"></div>
+    </header>
+
+    <div class="main-content">
+      <!-- Active Provider Control Area -->
+      <section class="work-area">
+
+        <!-- Banxico View -->
+        <div id="viewBanxico" class="provider-view">
+          <div class="card">
+            <div class="card-header">
+              <h2>Conexión SIE</h2>
+              <p>Datos oficiales del Banco de México.</p>
+            </div>
+            <div class="form-group">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label for="token">Token SIE</label>
+                <a href="https://www.banxico.org.mx/SieAPIRest/service/v1/token" target="_blank"
+                  style="font-size: 11px; font-weight: 600; text-decoration: none;">Obtener token ↗</a>
+              </div>
+              <div style="display:flex; gap:10px">
+                <input id="token" type="text" placeholder="Pega tu token aquí">
+                <button id="testSie" class="btn btn-outline">Probar</button>
+              </div>
+              <div id="msgSie" class="status-msg"></div>
+            </div>
+            <button id="saveBanxico" class="btn btn-primary">Guardar Conexión</button>
+          </div>
+
+          <div id="banxicoOps" class="locked-overlay locked">
+            <div class="unlock-notice">Configura tu token para añadir indicadores de México.</div>
+            <div class="card">
+              <h2>Añadir por ID</h2>
+              <p>Busca IDs en el <a href="https://www.banxico.org.mx/SieAPIRest/service/v1/doc/catalogoSeries"
+                  target="_blank">catálogo SIE</a>.</p>
+              <div class="row" style="display:flex; gap:15px; margin-top:15px;">
+                <input id="seriesId" type="text" placeholder="Ej. SF43718" style="width: 140px;">
+                <select id="seriesType" style="width: 80px;">
+                  <option value="percent">%</option>
+                  <option value="currency">$</option>
+                  <option value="number">#</option>
+                </select>
+                <button id="addById" class="btn btn-primary">Añadir</button>
+              </div>
+              <div id="seriesMsg" class="status-msg"></div>
+            </div>
           </div>
         </div>
-        <p>Pega un <strong>ID SIE</strong> (ej. <code>SF43718</code>, <code>SF61745</code>).</p>
-        <p>¿No sabes cuál ID usar? Consulta el
-          <a href="https://www.banxico.org.mx/SieAPIRest/service/v1/doc/catalogoSeries" target="_blank" rel="noopener">
-            catálogo completo de series del SIE
-          </a>.
-        </p>
-        <div class="row">
-          <input id="seriesId" type="text" placeholder="ID de serie (SFxxxxx)" class="w-120">
-          <div id="manualFormat" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-            <select id="seriesType" class="w-120">
-              <option value="percent">%</option>
-              <option value="currency">$</option>
-              <option value="number">#</option>
-            </select>
-            <input id="seriesCurrency" type="text" placeholder="MXN" class="w-90">
-            <select id="seriesDecimals" class="w-90">
-              <option>0</option>
-              <option>1</option>
-              <option selected>2</option>
-              <option>3</option>
-              <option>4</option>
-              <option>5</option>
-              <option>6</option>
-            </select>
+
+        <!-- Alpha Vantage View -->
+        <div id="viewAv" class="provider-view hidden">
+          <div class="card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+              <div>
+                <h2>Conexión Global</h2>
+                <p>Commodities, Forex y Cripto vía Alpha Vantage.</p>
+              </div>
+              <img src="assets/av-logo.png" alt="Alpha Vantage Logo"
+                style="height: 48px; border-radius: 8px; border: 1px solid var(--border); padding: 4px;">
+            </div>
+            <div class="form-group">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label for="avToken">API Key</label>
+                <a href="https://www.alphavantage.co/support/#api-key" target="_blank"
+                  style="font-size: 11px; font-weight: 600; text-decoration: none;">Obtener gratis ↗</a>
+              </div>
+              <div style="display:flex; gap:10px">
+                <input id="avToken" type="text" placeholder="Ej. DEMO1234">
+                <button id="testAv" class="btn btn-outline">Probar</button>
+              </div>
+              <div id="msgAv" class="status-msg"></div>
+            </div>
+            <p style="margin: 0 0 20px; font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;">
+              ⚠️ El plan gratuito de Alpha Vantage está limitado a <b>25 peticiones por día</b>.
+              Si necesitas más volumen, puedes adquirir un <a href="https://www.alphavantage.co/premium/"
+                target="_blank" style="color: var(--primary); font-weight: 700;">plan premium aquí</a>.
+            </p>
+            <button id="saveAv" class="btn btn-primary">Guardar Conexión</button>
           </div>
-          <button id="addById">Añadir</button>
-          <button id="cancelEdit" class="secondary" style="display:none">Cancelar</button>
+
+          <div id="avOps" class="locked-overlay locked">
+            <div class="unlock-notice">Configura tu API Key para ver el catálogo global.</div>
+            <div class="card">
+              <h2>Catálogo de Commodities</h2>
+              <p>Haz clic para añadir a tu tablero.</p>
+              <div id="avButtons" class="chips" style="margin-top:15px"></div>
+            </div>
+          </div>
         </div>
-        <div id="seriesMsg" class="note" role="status" aria-live="polite"></div>
-      </div>
-      <div class="card">
-        <h2>Seleccionadas</h2>
-        <div id="selected" class="chips"></div>
-        <div class="note">Se muestran en el popup en el mismo orden.</div>
-      </div>
+
+        <!-- INEGI View -->
+        <div id="viewInegi" class="provider-view hidden">
+          <div class="card">
+            <div class="card-header">
+              <h2>Conexión INEGI</h2>
+              <p>Estadísticas sociodemográficas y económicas de México.</p>
+            </div>
+            <div class="form-group">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label for="inegiToken">Token INEGI</label>
+                <a href="https://www.inegi.org.mx/servicios/api_indicadores.html" target="_blank"
+                  style="font-size: 11px; font-weight: 600; text-decoration: none;">Obtener token ↗</a>
+              </div>
+              <div style="display:flex; gap:10px">
+                <input id="inegiToken" type="text" placeholder="Pega tu token aquí">
+                <button id="testInegi" class="btn btn-outline">Probar</button>
+              </div>
+              <div id="msgInegi" class="status-msg"></div>
+            </div>
+            <button id="saveInegi" class="btn btn-primary">Guardar Conexión</button>
+          </div>
+
+          <div id="inegiOps" class="locked-overlay locked">
+            <div class="unlock-notice">Configura tu token para añadir indicadores del INEGI.</div>
+            <div class="card">
+              <h2>Catálogo Sugerido</h2>
+              <p>Indicadores clave del instituto.</p>
+              <div id="inegiButtons" class="chips" style="margin-top:15px"></div>
+            </div>
+            <div class="card">
+              <h2>Añadir por ID</h2>
+              <p>Busca indicadores en el <a
+                  href="https://www.inegi.org.mx/app/api/indicadores/desarrolladores/jsonxml/CONSTRUCTOR/es/00/BISE/2.0"
+                  target="_blank">constructor de consultas</a>.</p>
+              <div class="row" style="display:flex; gap:15px; margin-top:15px;">
+                <input id="inegiIdInput" type="text" placeholder="Ej. 1002000001" style="width: 140px;">
+                <button id="addInegiById" class="btn btn-primary">Añadir</button>
+              </div>
+              <div id="inegiMsg" class="status-msg"></div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Persistent Selection Side Panel -->
+      <aside class="selection-panel">
+        <div class="card" style="height: 100%; display: flex; flex-direction: column;">
+          <div class="card-header">
+            <h2>Mi Tablero</h2>
+            <p>Orden de visualización.</p>
+          </div>
+          <div id="selected" class="selected-list" style="flex-grow: 1; overflow-y: auto;">
+            <!-- Rendered by JS -->
+          </div>
+          <div class="section-divider"></div>
+          <div class="note" style="font-size: 11px; text-align: center;">Los cambios se guardan automáticamente.</div>
+        </div>
+      </aside>
     </div>
-    <footer>Hecho por <a href="https://alasha.biz" target="_blank" rel="noopener">Alasha Collective</a>.</footer>
-  </div>
+  </main>
+
   <script type="module" src="onboarding.js"></script>
 </body>
 
