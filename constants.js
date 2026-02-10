@@ -139,10 +139,8 @@ export const AV_CATALOG = [
 
 // INEGI Catalog (Common Indicators)
 export const INEGI_CATALOG = [
-  { id: "INEGI_1002000001", title: "Población total", type: "number", decimals: 0, periodicity: "Cada 5 años", figure: "Personas", description: "Población total en México (Censo/Conteo)" },
-  { id: "INEGI_6207061433", title: "Tasa de Desocupación", type: "percent", decimals: 2, periodicity: "Mensual", figure: "Tasa", description: "Porcentaje de la Población Económicamente Activa que se encuentra sin trabajar" },
-  { id: "INEGI_6200205259", title: "PIB Trimestral (Var. Anual %)", type: "percent", decimals: 1, periodicity: "Trimestral", figure: "Variación", description: "Producto Interno Bruto, variación porcentual real respecto al mismo trimestre del año anterior" },
-  { id: "INEGI_444644", title: "Confianza del Consumidor", type: "number", decimals: 1, periodicity: "Mensual", figure: "Índice", description: "Indicador de Confianza del Consumidor (Puntos)" }
+  { id: "INEGI_1002000001", title: "Población Total", type: "number", decimals: 0, periodicity: "5 Años", figure: "Personas", description: "Población total en México (Censo/Conteo)" },
+  { id: "INEGI_496092", title: "PIB (Var. Anual Desest.)", type: "percent", decimals: 1, periodicity: "Trimestral", figure: "Variación", description: "Producto Interno Bruto, variación porcentual anual (Serie desestacionalizada)" }
 ];
 
 // Banxico SIE Series ID format: Sxyyyyy (S + 1 letter + 5 digits)

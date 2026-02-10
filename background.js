@@ -138,6 +138,7 @@ async function fetchAlphaVantage(avId, token) {
         const r = await fetch(url, { cache: "no-store" });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const json = await r.json();
+        console.log(`[Background] AV GOLD_SILVER_SPOT response for ${symbol}:`, json);
         checkErrors(json);
 
         if (json.price) {
@@ -157,6 +158,7 @@ async function fetchAlphaVantage(avId, token) {
             const r = await fetch(url, { cache: "no-store" });
             if (r.ok) {
                 const json = await r.json();
+                console.log(`[Background] AV Commodity response for ${symbol}:`, json);
                 checkErrors(json);
                 if (json.data && json.data.length > 0) {
                     return {
@@ -263,6 +265,7 @@ async function fetchInegiSeries(inegiId, token) {
     const r = await fetch(url, { cache: "no-store" });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const json = await r.json();
+    console.log(`[Background] INEGI response for ${id}:`, JSON.stringify(json).substring(0, 500));
 
     const obs = json.Series?.[0]?.OBSERVATIONS?.[0];
     if (obs) {
@@ -331,40 +334,51 @@ async function refreshDashboardData() {
             });
         }
 
-        if (avIds.length > 0 && avToken) {
-            for (const id of avIds) {
-                try {
-                    const avData = await fetchAlphaVantage(id, avToken);
-                    const currentCache = (await chrome.storage.local.get("cachedSeriesData")).cachedSeriesData || [];
-                    const cacheMap = new Map(currentCache.map(s => [s.id, s]));
+        if (avIds.length > 0) {
+            if (!avToken) {
+                // Mark all AV series as missing token
+                const currentCache = (await chrome.storage.local.get("cachedSeriesData")).cachedSeriesData || [];
+                const cacheMap = new Map(currentCache.map(s => [s.id, s]));
+                avIds.forEach(id => {
+                    cacheMap.set(id, { id, error: "Falta API Key (Alpha Vantage)" });
+                });
+                await chrome.storage.local.set({ cachedSeriesData: Array.from(cacheMap.values()) });
+            } else {
+                for (const id of avIds) {
+                    try {
+                        const avData = await fetchAlphaVantage(id, avToken);
+                        const currentCache = (await chrome.storage.local.get("cachedSeriesData")).cachedSeriesData || [];
+                        const cacheMap = new Map(currentCache.map(s => [s.id, s]));
 
-                    const cachedVal = prevMap.get(id);
-                    const cachedDate = prevDateMap.get(id);
-                    let prevVal = (cachedVal && cachedVal !== avData.val) ? cachedVal : null;
-                    let prevDate = (cachedDate && cachedDate !== avData.date) ? cachedDate : null;
+                        const cachedVal = prevMap.get(id);
+                        const cachedDate = prevDateMap.get(id);
+                        let prevVal = (cachedVal && cachedVal !== avData.val) ? cachedVal : null;
+                        let prevDate = (cachedDate && cachedDate !== avData.date) ? cachedDate : null;
 
-                    cacheMap.set(id, {
-                        id,
-                        val: avData.val,
-                        date: avData.date,
-                        prev: prevVal,
-                        prevDate: prevDate,
-                        source: avData.source,
-                        error: null
-                    });
+                        cacheMap.set(id, {
+                            id,
+                            val: avData.val,
+                            date: avData.date,
+                            prev: prevVal,
+                            prevDate: prevDate,
+                            source: avData.source,
+                            error: null
+                        });
 
-                    await chrome.storage.local.set({
-                        cachedSeriesData: Array.from(cacheMap.values()),
-                        lastUpdated: Date.now()
-                    });
+                        await chrome.storage.local.set({
+                            cachedSeriesData: Array.from(cacheMap.values()),
+                            lastUpdated: Date.now()
+                        });
 
-                    if (id !== avIds[avIds.length - 1]) await new Promise(r => setTimeout(r, 15000));
-                } catch (e) {
-                    const currentCache = (await chrome.storage.local.get("cachedSeriesData")).cachedSeriesData || [];
-                    const cacheMap = new Map(currentCache.map(s => [s.id, s]));
-                    cacheMap.set(id, { id, error: e.message });
-                    await chrome.storage.local.set({ cachedSeriesData: Array.from(cacheMap.values()) });
-                    if (e.message.includes("Límite")) break;
+                        if (id !== avIds[avIds.length - 1]) await new Promise(r => setTimeout(r, 15000));
+                    } catch (e) {
+                        const currentCache = (await chrome.storage.local.get("cachedSeriesData")).cachedSeriesData || [];
+                        const cacheMap = new Map(currentCache.map(s => [s.id, s]));
+                        const isLimit = e.message.includes("Límite");
+                        cacheMap.set(id, { id, error: isLimit ? "Límite API alcanzado" : e.message });
+                        await chrome.storage.local.set({ cachedSeriesData: Array.from(cacheMap.values()) });
+                        if (isLimit) break;
+                    }
                 }
             }
         }
@@ -372,7 +386,15 @@ async function refreshDashboardData() {
         // 3. Fetch INEGI sequentially
         if (inegiIds.length > 0) {
             const { inegiToken } = await chrome.storage.local.get("inegiToken");
-            if (inegiToken) {
+            if (!inegiToken) {
+                // Mark all INEGI series as missing token
+                const currentCache = (await chrome.storage.local.get("cachedSeriesData")).cachedSeriesData || [];
+                const cacheMap = new Map(currentCache.map(s => [s.id, s]));
+                inegiIds.forEach(id => {
+                    cacheMap.set(id, { id, error: "Falta Token INEGI" });
+                });
+                await chrome.storage.local.set({ cachedSeriesData: Array.from(cacheMap.values()) });
+            } else {
                 console.log(`[Background] Fetching ${inegiIds.length} INEGI series...`);
                 for (const id of inegiIds) {
                     try {
@@ -403,6 +425,7 @@ async function refreshDashboardData() {
                         // Small delay for INEGI to be polite
                         if (id !== inegiIds[inegiIds.length - 1]) await new Promise(r => setTimeout(r, 2000));
                     } catch (e) {
+                        console.error(`[Background] Error fetching INEGI ${id}:`, e);
                         const currentCache = (await chrome.storage.local.get("cachedSeriesData")).cachedSeriesData || [];
                         const cacheMap = new Map(currentCache.map(s => [s.id, s]));
                         cacheMap.set(id, { id, error: e.message });
@@ -502,8 +525,57 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
+    // Check if the change was triggered by our migration to avoid loops
+    if (area === "local" && changes.sieSeries) {
+        // If the change was JUST the migration, we might not need to do anything if refreshDashboardData is called anyway
+        // But to be safe and simple, let it refresh.
+    }
+
     if (area === "local" && (changes.sieToken || changes.avToken || changes.inegiToken || changes.sieSeries)) {
         console.log("[Background] Configuration changed, refreshing data...");
         refreshDashboardData();
     }
 });
+
+// --- Migration Logic ---
+async function migrateStaleIds() {
+    const { sieSeries } = await chrome.storage.local.get("sieSeries");
+    if (!sieSeries || !Array.isArray(sieSeries)) return;
+
+    let changed = false;
+    const migrations = {
+        "INEGI_6207061433": "INEGI_444884", // Old Unemployment -> New Seasonally Adjusted
+        "INEGI_6200205259": "INEGI_496092", // Old GDP -> New Annual Variation SA
+        "INEGI_444644": "INEGI_454186"      // Old Consumer Confidence -> New Seasonally Adjusted
+    };
+
+    const newSeries = sieSeries.map(s => {
+        if (migrations[s.id]) {
+            console.log(`[Migration] Updating stale ID ${s.id} to ${migrations[s.id]}`);
+            changed = true;
+            return { ...s, id: migrations[s.id] };
+        }
+        return s;
+    });
+
+    if (changed) {
+        await chrome.storage.local.set({ sieSeries: newSeries });
+        console.log("[Migration] Stale IDs updated.");
+    }
+}
+
+// --- Initialization ---
+chrome.runtime.onInstalled.addListener(() => {
+    chrome.alarms.create("refresh", { periodInMinutes: 60 });
+    migrateStaleIds().then(() => refreshDashboardData());
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === "refresh") refreshDashboardData();
+});
+
+// Initial load
+(async () => {
+    await migrateStaleIds();
+    refreshDashboardData();
+})();

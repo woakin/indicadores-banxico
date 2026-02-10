@@ -241,12 +241,30 @@ import { DEFAULT_SERIES, SERIES_ID_REGEX, BANXICO_API_BASE, ALPHAVANTAGE_API_BAS
 
     if (inegiToken) {
       try {
-        const url = `${INEGI_API_BASE}/INDICATOR/${rawId}/es/00/true/BISE/2.0/${encodeURIComponent(inegiToken)}?type=json`;
-        const r = await fetch(url);
+        msg.textContent = "⏳ Buscando metadatos...";
+        // Fetch metadata using CL_INDICATOR (Key of Indicators)
+        // URL Pattern: .../CL_INDICATOR/[ID]/es/BISE/2.0/[TOKEN]?type=json
+        const metaUrl = `${INEGI_API_BASE}/CL_INDICATOR/${rawId}/es/BISE/2.0/${encodeURIComponent(inegiToken)}?type=json`;
+        const r = await fetch(metaUrl);
         const json = await r.json();
-        // INEGI no suele dar el nombre del indicador en el JSON de datos sin metadatos CL_INDICATOR
-        // Por ahora lo dejamos así y el usuario puede ver el ID.
-      } catch (e) { }
+
+        // Structure: { CODE: [{ value: "...", Description: "..." }] }
+        // Note: The structure might vary, but usually it's under CODE or Series
+        const meta = json?.CODE?.[0];
+
+        if (meta) {
+          item.title = meta.Description || item.title;
+          const lowerTitle = item.title.toLowerCase();
+          if (lowerTitle.includes("tasa") || lowerTitle.includes("porcentaje") || lowerTitle.includes("variación")) {
+            item.type = "percent";
+          } else if (lowerTitle.includes("pesos") || lowerTitle.includes("dólares")) {
+            item.type = "currency";
+            item.currency = "MXN"; // Default to MXN
+          }
+        }
+      } catch (e) {
+        console.warn("Error fetching INEGI metadata:", e);
+      }
     }
 
     sieSeries.push(item);
@@ -365,6 +383,33 @@ import { DEFAULT_SERIES, SERIES_ID_REGEX, BANXICO_API_BASE, ALPHAVANTAGE_API_BAS
     sieSeries.splice(idx, 1);
     await chrome.storage.local.set({ sieSeries });
     renderSelected(sieSeries);
+  }
+
+  // --- Modals ---
+  const helpModal = $("#inegiHelpModal");
+  const openHelpBtn = $("#openInegiHelp");
+  const closeHelpBtn = $("#closeInegiHelp");
+
+  if (openHelpBtn && helpModal) {
+    openHelpBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      helpModal.classList.add("open");
+    });
+  }
+
+  if (closeHelpBtn && helpModal) {
+    closeHelpBtn.addEventListener("click", () => {
+      helpModal.classList.remove("open");
+    });
+  }
+
+  // Close on backdrop click
+  if (helpModal) {
+    helpModal.addEventListener("click", (e) => {
+      if (e.target === helpModal) {
+        helpModal.classList.remove("open");
+      }
+    });
   }
 
 })();

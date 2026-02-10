@@ -400,6 +400,70 @@
     .hidden {
       display: none !important;
     }
+
+    /* --- Modal --- */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(2px);
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal {
+      background: white;
+      padding: 32px;
+      border-radius: var(--radius);
+      max-width: 550px;
+      width: 90%;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+      position: relative;
+      animation: modalSlide 0.3s ease-out;
+    }
+
+    @keyframes modalSlide {
+      from {
+        transform: translateY(20px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .close-modal {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      border: none;
+      background: #f1f5f9;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+
+    .close-modal:hover {
+      background: #e2e8f0;
+      color: var(--destructive);
+    }
   </style>
 </head>
 
@@ -565,9 +629,9 @@
             </div>
             <div class="card">
               <h2>Añadir por ID</h2>
-              <p>Busca indicadores en el <a
-                  href="https://www.inegi.org.mx/app/api/indicadores/desarrolladores/jsonxml/CONSTRUCTOR/es/00/BISE/2.0"
-                  target="_blank">constructor de consultas</a>.</p>
+              <p>Busca indicadores en el <a href="https://www.inegi.org.mx/servicios/api_indicadores.html"
+                  target="_blank">constructor de consultas</a> o consulta <a href="#" id="openInegiHelp"
+                  style="color: var(--primary); font-weight: 600;">esta guía rápida</a>.</p>
               <div class="row" style="display:flex; gap:15px; margin-top:15px;">
                 <input id="inegiIdInput" type="text" placeholder="Ej. 1002000001" style="width: 140px;">
                 <button id="addInegiById" class="btn btn-primary">Añadir</button>
@@ -595,6 +659,35 @@
       </aside>
     </div>
   </main>
+
+  <div id="inegiHelpModal" class="modal-overlay">
+    <div class="modal">
+      <button id="closeInegiHelp" class="close-modal">×</button>
+      <h2 style="margin-top:0;">Cómo encontrar IDs del INEGI</h2>
+      <p style="color:var(--text-muted); margin-bottom: 20px;">Sigue estos pasos para encontrar el ID correcto para
+        cualquier indicador.</p>
+
+      <img src="assets/inegi_guide.png" alt="Guía visual INEGI"
+        style="width:100%; border-radius:8px; border:1px solid var(--border); margin-bottom:20px;">
+
+      <ol style="line-height: 1.6; padding-left: 20px; margin-bottom: 24px;">
+        <li>Entra a la <a href="https://www.inegi.org.mx/servicios/api_indicadores.html" target="_blank"
+            style="font-weight:600">página de la API de INEGI</a>.</li>
+        <li>Ve a la pestaña <strong>"Constructor de Consultas"</strong> (como se ve en la imagen).</li>
+        <li>Navega por el árbol de temas (ej. <em>Precios e Inflación</em>) y selecciona tu indicador.</li>
+        <li>El ID es el número que aparece en la columna <strong>"Clave"</strong> (ej. <code>628194</code>).</li>
+      </ol>
+
+      <div style="background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid var(--border);">
+        <h3 style="margin:0 0 8px; font-size: 0.9rem;">⚠️ Importante</h3>
+        <ul style="margin:0; padding-left: 20px; font-size: 0.9rem; color: var(--text-muted);">
+          <li>Si buscas <strong>variaciones porcentuales</strong> (ej. PIB), asegúrate de que el indicador diga
+            "Variación anual" o "trimestral" en su nombre, no solo el valor absoluto en millones.</li>
+          <li>Para comparaciones mes a mes, busca series <strong>Desestacionalizadas</strong>.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="onboarding.js"></script>
 </body>
