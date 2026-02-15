@@ -1,4 +1,5 @@
 import { DEFAULT_SERIES, BANXICO_API_BASE, ALPHAVANTAGE_API_BASE, INEGI_API_BASE } from './constants.js';
+import { latestValidObservation } from './utils.js';
 
 // --- Background Fetch Logic ---
 
@@ -18,16 +19,6 @@ async function fetchLastN(id, token, n = 20) {
     const r = await fetch(url, { cache: "no-store" });
     if (!r.ok) throw new Error(`Error HTTP ${r.status}`);
     return r.json();
-}
-
-function latestValidObservation(datos) {
-    if (!Array.isArray(datos) || datos.length === 0) return undefined;
-    for (let i = datos.length - 1; i >= 0; i -= 1) {
-        const obs = datos[i];
-        const raw = (obs?.dato || "").trim().toUpperCase();
-        if (raw && raw !== "N/E") return obs;
-    }
-    return undefined;
 }
 
 async function fetchBanxicoSeries(ids, token) {
@@ -309,10 +300,21 @@ async function refreshDashboardData() {
     lastRefreshStart = now;
     try {
         console.log("[Background] Refreshing dashboard data...");
-        const { sieToken, avToken, sieSeries, cachedSeriesData } = await chrome.storage.local.get(["sieToken", "avToken", "sieSeries", "cachedSeriesData"]);
+        const { sieToken, avToken, inegiToken, sieSeries, cachedSeriesData } = await chrome.storage.local.get(["sieToken", "avToken", "inegiToken", "sieSeries", "cachedSeriesData"]);
 
         const prevMap = new Map(cachedSeriesData?.map(s => [s.id, s.val]) || []);
         const prevDateMap = new Map(cachedSeriesData?.map(s => [s.id, s.date]) || []);
+        
+        // Master cache map to update
+        const cacheMap = new Map(cachedSeriesData?.map(s => [s.id, s]) || []);
+
+        // Helper to save current state
+        const saveCache = async () => {
+            await chrome.storage.local.set({
+                cachedSeriesData: Array.from(cacheMap.values()),
+                lastUpdated: Date.now()
+            });
+        };
 
         let list = (Array.isArray(sieSeries) && sieSeries.length > 0) ? sieSeries : DEFAULT_SERIES;
         const required = ["SP68257", "SF61745", "SP74665", "SP30579", "SR14447", "SR14138", "SR17692", "SE27803", "SF43783", ...DEFAULT_SERIES.map(s => s.id)];
@@ -322,34 +324,27 @@ async function refreshDashboardData() {
         const inegiIds = ids.filter(id => id.startsWith("INEGI_"));
         const banxicoIds = ids.filter(id => !id.startsWith("AV_") && !id.startsWith("INEGI_"));
 
+        // 1. Fetch Banxico (Batch)
         if (banxicoIds.length > 0 && sieToken) {
-            const banxicoResults = await fetchBanxicoSeries(banxicoIds, sieToken);
-            const currentCache = (await chrome.storage.local.get("cachedSeriesData")).cachedSeriesData || [];
-            const cacheMap = new Map(currentCache.map(s => [s.id, s]));
-            banxicoResults.forEach(r => cacheMap.set(r.id, { ...r, error: r.error || null }));
-
-            await chrome.storage.local.set({
-                cachedSeriesData: Array.from(cacheMap.values()),
-                lastUpdated: Date.now()
-            });
+            try {
+                const banxicoResults = await fetchBanxicoSeries(banxicoIds, sieToken);
+                banxicoResults.forEach(r => cacheMap.set(r.id, { ...r, error: r.error || null }));
+                await saveCache();
+            } catch (e) {
+                console.error("[Background] Banxico refresh failed:", e);
+            }
         }
 
+        // 2. Fetch Alpha Vantage (Sequential)
         if (avIds.length > 0) {
             if (!avToken) {
-                // Mark all AV series as missing token
-                const currentCache = (await chrome.storage.local.get("cachedSeriesData")).cachedSeriesData || [];
-                const cacheMap = new Map(currentCache.map(s => [s.id, s]));
-                avIds.forEach(id => {
-                    cacheMap.set(id, { id, error: "Falta API Key (Alpha Vantage)" });
-                });
-                await chrome.storage.local.set({ cachedSeriesData: Array.from(cacheMap.values()) });
+                avIds.forEach(id => cacheMap.set(id, { id, error: "Falta API Key (Alpha Vantage)" }));
+                await saveCache();
             } else {
-                for (const id of avIds) {
+                for (let i = 0; i < avIds.length; i++) {
+                    const id = avIds[i];
                     try {
                         const avData = await fetchAlphaVantage(id, avToken);
-                        const currentCache = (await chrome.storage.local.get("cachedSeriesData")).cachedSeriesData || [];
-                        const cacheMap = new Map(currentCache.map(s => [s.id, s]));
-
                         const cachedVal = prevMap.get(id);
                         const cachedDate = prevDateMap.get(id);
                         let prevVal = (cachedVal && cachedVal !== avData.val) ? cachedVal : null;
@@ -364,44 +359,31 @@ async function refreshDashboardData() {
                             source: avData.source,
                             error: null
                         });
+                        await saveCache();
 
-                        await chrome.storage.local.set({
-                            cachedSeriesData: Array.from(cacheMap.values()),
-                            lastUpdated: Date.now()
-                        });
-
-                        if (id !== avIds[avIds.length - 1]) await new Promise(r => setTimeout(r, 15000));
+                        // Delay between requests, but not after the last one
+                        if (i < avIds.length - 1) await new Promise(r => setTimeout(r, 15000));
                     } catch (e) {
-                        const currentCache = (await chrome.storage.local.get("cachedSeriesData")).cachedSeriesData || [];
-                        const cacheMap = new Map(currentCache.map(s => [s.id, s]));
                         const isLimit = e.message.includes("Límite");
                         cacheMap.set(id, { id, error: isLimit ? "Límite API alcanzado" : e.message });
-                        await chrome.storage.local.set({ cachedSeriesData: Array.from(cacheMap.values()) });
+                        await saveCache();
                         if (isLimit) break;
                     }
                 }
             }
         }
 
-        // 3. Fetch INEGI sequentially
+        // 3. Fetch INEGI (Sequential)
         if (inegiIds.length > 0) {
-            const { inegiToken } = await chrome.storage.local.get("inegiToken");
             if (!inegiToken) {
-                // Mark all INEGI series as missing token
-                const currentCache = (await chrome.storage.local.get("cachedSeriesData")).cachedSeriesData || [];
-                const cacheMap = new Map(currentCache.map(s => [s.id, s]));
-                inegiIds.forEach(id => {
-                    cacheMap.set(id, { id, error: "Falta Token INEGI" });
-                });
-                await chrome.storage.local.set({ cachedSeriesData: Array.from(cacheMap.values()) });
+                inegiIds.forEach(id => cacheMap.set(id, { id, error: "Falta Token INEGI" }));
+                await saveCache();
             } else {
                 console.log(`[Background] Fetching ${inegiIds.length} INEGI series...`);
-                for (const id of inegiIds) {
+                for (let i = 0; i < inegiIds.length; i++) {
+                    const id = inegiIds[i];
                     try {
                         const inegiData = await fetchInegiSeries(id, inegiToken);
-                        const currentCache = (await chrome.storage.local.get("cachedSeriesData")).cachedSeriesData || [];
-                        const cacheMap = new Map(currentCache.map(s => [s.id, s]));
-
                         const cachedVal = prevMap.get(id);
                         const cachedDate = prevDateMap.get(id);
                         let prevVal = (cachedVal && cachedVal !== inegiData.val) ? cachedVal : null;
@@ -416,20 +398,13 @@ async function refreshDashboardData() {
                             source: inegiData.source,
                             error: null
                         });
+                        await saveCache();
 
-                        await chrome.storage.local.set({
-                            cachedSeriesData: Array.from(cacheMap.values()),
-                            lastUpdated: Date.now()
-                        });
-
-                        // Small delay for INEGI to be polite
-                        if (id !== inegiIds[inegiIds.length - 1]) await new Promise(r => setTimeout(r, 2000));
+                        if (i < inegiIds.length - 1) await new Promise(r => setTimeout(r, 2000));
                     } catch (e) {
                         console.error(`[Background] Error fetching INEGI ${id}:`, e);
-                        const currentCache = (await chrome.storage.local.get("cachedSeriesData")).cachedSeriesData || [];
-                        const cacheMap = new Map(currentCache.map(s => [s.id, s]));
                         cacheMap.set(id, { id, error: e.message });
-                        await chrome.storage.local.set({ cachedSeriesData: Array.from(cacheMap.values()) });
+                        await saveCache();
                     }
                 }
             }
