@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+    .glass-card {
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .ticker-scroll {
+        display: flex;
+        animation: scroll 25s linear infinite;
+    }
+
+    .ticker-track {
+        display: inline-flex;
+        gap: 2rem;
+        padding-right: 2rem;
+    }
+
+    @keyframes scroll {
+        0% {
+            transform: translateX(0);
+        }
+
+        100% {
+            transform: translateX(-50%);
+        }
+    }
+
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    .toast.show {
+        transform: translateX(-50%) translateY(0) !important;
+        display: flex !important;
+    }
+
+    /* Popup JS Bridge Styles - Map existing classes created in JS to Tailwind classes */
+    .indicator-card {
+        @apply bg-card-dark p-4 rounded-xl flex flex-col justify-between relative overflow-hidden transition-all hover:border-primary/50 border border-[#232E3D] cursor-default min-h-[140px];
+    }
+
+    .card-info {
+        @apply flex flex-col mb-4;
+    }
+
+    .card-title {
+        @apply text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2;
+    }
+
+    .card-date {
+        @apply text-[8px] text-text-muted font-medium absolute bottom-2 right-4;
+    }
+
+    .card-data {
+        @apply flex flex-col items-start mt-auto;
+    }
+
+    .card-value {
+        @apply text-[22px] font-bold text-white leading-none z-10;
+    }
+
+    /* Tabs */
+    .tab-btn.active {
+        @apply bg-primary text-background-dark shadow-none rounded-lg;
+    }
+
+    .tab-btn.active-alt {
+        @apply bg-primary-alt text-background-dark shadow-none rounded-lg;
+    }
+
+    .variation-badge {
+        @apply flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded ml-0;
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .badge-source {
+        @apply text-[8px] px-1 py-0.5 rounded ml-2 uppercase font-bold hidden;
+        /* Hide source badges to keep clean UI */
+    }
+
+    .icon-btn {
+        @apply bg-white/5 hover:bg-white/10 text-slate-300 p-1.5 rounded-lg text-xs transition-colors;
+    }
+
+    .card-actions {
+        @apply flex gap-1 absolute bottom-3 right-3 z-20;
+    }
+
+    /* Calendar styles */
+    .calendar-item {
+        @apply flex items-center justify-between py-3 border-b border-card-border last:border-0;
+    }
+
+    .calendar-item-header {
+        @apply flex flex-col gap-0.5;
+    }
+
+    .calendar-item-title {
+        @apply text-[13px] font-bold text-white;
+    }
+
+    .calendar-item-time {
+        @apply text-[11px] font-medium text-slate-400;
+    }
+
+    .calendar-item-meta {
+        @apply flex items-center;
+    }
+
+    .calendar-impact-high {
+        @apply text-[9px] font-bold text-danger border border-danger/20 bg-danger/10 px-2 py-1 rounded;
+    }
+
+    .calendar-impact-med {
+        @apply text-[9px] font-bold text-primary border border-primary/20 bg-primary/10 px-2 py-1 rounded;
+    }
+
+    /* Table styles for history */
+    table {
+        @apply w-full text-left text-xs text-slate-300;
+    }
+
+    th {
+        @apply bg-slate-800 text-[10px] uppercase font-bold py-2 px-3 text-primary tracking-wider sticky top-0;
+    }
+
+    td {
+        @apply py-2 px-3 border-b border-white/5;
+    }
+
+    /* Ticker generated items */
+    .ticker-item {
+        @apply flex items-center gap-1.5 font-bold;
+    }
+
+    .ticker-item .text {
+        @apply text-[10px] text-slate-400;
+    }
+
+    .ticker-item .value {
+        @apply text-xs text-white;
+    }
+
+    .ticker-item.up .value {
+        @apply text-emerald-400;
+    }
+
+    .ticker-item.down .value {
+        @apply text-rose-400;
+    }
+
+    body.loading {
+        @apply cursor-wait pointer-events-none;
+    }
+
+    body.loading #loading {
+        @apply !flex;
+    }
+
+    /* View visibility modifiers since JS uses display toggle directly */
+    .view-content {
+        display: none;
+    }
+
+    .tab-btn.active {
+        @apply bg-primary text-background-dark shadow-lg;
+    }
+
+    /* Make calendar picker icons white instead of default black */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+        filter: invert(1) opacity(0.7);
+        cursor: pointer;
+    }
+}

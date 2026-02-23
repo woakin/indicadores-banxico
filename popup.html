@@ -1,220 +1,375 @@
 <!DOCTYPE html>
-<html lang="es">
+<html class="dark" lang="es">
 
 <head>
   <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>Indicadores Banxico (SIE)</title>
+  <!-- Use locally built CSS -->
   <link rel="stylesheet" href="popup.css">
+  <script src="assets/chart.umd.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+    rel="stylesheet" />
 </head>
 
-<body>
-  <div class="shell">
-    <nav class="nav-container">
-      <div class="tabs">
-        <button class="tab-btn active" data-target="marketView">Mercado</button>
-        <button class="tab-btn" data-target="analysisView">Análisis</button>
-        <button class="tab-btn" data-target="calculatorsView">Calculadoras</button>
-        <button class="tab-btn" data-target="settingsView">Configuración</button>
+<body class="bg-background-dark font-display text-slate-100 antialiased overflow-x-hidden min-h-screen"
+  style="width: 450px; min-height: 500px;">
+  <div class="relative mx-auto w-full min-h-[500px] flex flex-col bg-background-dark overflow-x-hidden">
+
+    <!-- Ticker Scroll -->
+    <div class="w-full bg-slate-900/80 border-b border-slate-800 py-1.5 overflow-hidden sticky top-0 z-50 glass">
+      <div class="ticker-scroll flex items-center gap-8 px-4" id="combinedTicker">
+        <!-- JS injects .ticker-track items here -->
+        <div class="ticker-track"></div>
+        <div class="ticker-track" aria-hidden="true"></div>
+      </div>
+    </div>
+
+    <!-- Header -->
+    <header class="flex items-center justify-between px-4 py-5 bg-background-dark">
+      <div class="flex items-center gap-3">
+        <span class="material-symbols-outlined text-primary text-2xl font-bold">payments</span>
+        <h1 class="text-xl font-bold leading-none tracking-tight text-white mb-0.5">Financiera MX</h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="refresh"
+          class="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:text-primary transition-colors hover:bg-white/5 active:scale-95"
+          title="Actualizar datos">
+          <span class="material-symbols-outlined text-[22px]">refresh</span>
+        </button>
+        <button
+          class="tab-btn flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:text-white transition-colors hover:bg-white/5 active:scale-95"
+          data-target="settingsView" title="Ajustes">
+          <span class="material-symbols-outlined text-[22px]">settings</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="px-4 pb-4 bg-background-dark">
+      <div class="flex overflow-x-auto no-scrollbar gap-1 bg-card-dark p-1.5 rounded-xl">
+        <button
+          class="tab-btn active flex-1 py-1.5 px-2 text-[12px] font-bold text-center rounded-lg text-background-dark whitespace-nowrap active:scale-95 transition-all"
+          data-target="marketView">Dashboard</button>
+        <button
+          class="tab-btn flex-1 py-1.5 px-2 text-[12px] font-bold text-center rounded-lg text-text-muted hover:text-white whitespace-nowrap active:scale-95 transition-all"
+          data-target="analysisView">Análisis</button>
+        <button
+          class="tab-btn flex-1 py-1.5 px-2 text-[12px] font-bold text-center rounded-lg text-text-muted hover:text-white whitespace-nowrap active:scale-95 transition-all"
+          data-target="calculatorsView">Calculadoras</button>
       </div>
     </nav>
 
-    <!-- Pestaña 1: Mercado (Indicadores + Salud Financiera) -->
-    <div id="marketView" class="view-content">
-      <div class="section">
-        <div class="section-header">
-          <div>
-            <h3>Indicadores Banxico</h3>
-            <p id="lastUpdated" class="muted" style="margin:2px 0">Actualizado: —</p>
-          </div>
-          <button id="refresh" class="icon-btn" title="Actualizar datos">🔄</button>
+    <main class="flex-1 pb-8">
+      <!-- PESTAÑA 1 -->
+      <div id="marketView" class="view-content p-4 block space-y-4">
+        <div id="warning"
+          class="hidden p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs">
+          Falta tu token SIE. <a href="onboarding.html" class="font-bold underline" target="_blank">Configúralo
+            aquí</a>.
         </div>
-        <div id="warning" class="warn">
-          Falta tu token SIE. <a href="onboarding.html" class="link" target="_blank">Configúralo aquí</a>.
-        </div>
-        <div id="rateLimitNotice" class="warn"
-          style="display:none; background: #fffbeb; border-color: #fde68a; color: #92400e;">
-          ⚠️ Límite de API Alpha Vantage alcanzado. Los indicadores globales mostrarán datos guardados hasta que el
-          límite se reinicie.
+        <!-- Grids -->
+        <div id="indicatorCards" class="grid grid-cols-2 gap-3 pb-2">
+          <p class="text-xs text-slate-500 text-center col-span-2">Cargando indicadores...</p>
         </div>
 
-        <div id="indicatorCards" class="indicator-cards">
-          <p class="muted" style="text-align:center">Cargando indicadores...</p>
+        <div class="flex items-center justify-center mt-6">
+          <span id="lastUpdated" class="text-[10px] text-slate-500 font-medium tracking-wide">Actualizado: —</span>
         </div>
       </div>
 
-      <!-- Widget de Salud Financiera -->
-      <div class="section health-section">
-        <div class="section-header">
-          <h3>Salud Financiera</h3>
-          <div class="header-badges">
-            <div class="spread-col">
-              <span id="cetesSpread" class="spread-tag">--</span>
-              <span id="tiieSpread" class="spread-tag">--</span>
+      <!-- PESTAÑA 2 -->
+      <div id="analysisView" class="view-content p-4 hidden space-y-6">
+        <section class="bg-card-dark p-5 rounded-2xl border border-white/5 space-y-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-bold uppercase tracking-widest text-slate-400">Salud Financiera</h2>
+            <span class="material-symbols-outlined text-primary text-xl">trending_up</span>
+          </div>
+
+          <div class="flex justify-between items-end">
+            <div>
+              <p class="text-[13px] text-slate-400 mb-1">Tasa de Referencia</p>
+              <div class="text-3xl font-bold text-white shadow-sm" id="targetRateDisplay">--</div>
             </div>
-            <span id="realRateLabel" class="badge">--</span>
+            <div class="text-right">
+              <p class="text-[13px] text-slate-400 mb-1">Inflación Anual</p>
+              <div class="text-3xl font-bold text-danger" id="inflationDisplay">--</div>
+            </div>
           </div>
+
+          <div class="space-y-4">
+            <div class="h-3.5 w-full bg-input-dark rounded-full overflow-hidden flex">
+              <div id="realRateInflationBar" class="h-full bg-danger bar-segment"></div>
+              <div id="realRateProfitBar" class="h-full bg-success bar-segment shadow-[0_0_10px_rgba(29,204,163,0.5)]">
+              </div>
+            </div>
+
+            <div class="flex justify-between items-center text-[12px] font-medium px-1">
+              <div class="flex items-center gap-1.5 text-slate-400">
+                <div class="w-2.5 h-2.5 rounded-full bg-danger"></div>
+                Inflación
+              </div>
+              <div id="realRateLabelContainer" class="flex items-center gap-1.5 text-success">
+                <div id="realRateDot" class="w-2.5 h-2.5 rounded-full bg-success"></div>
+                Tasa Real (<span id="realRateLabel" class="font-bold">--</span>)
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-3 pt-2">
+            <div
+              class="flex-1 bg-white/5 border border-white/10 rounded-xl py-2 px-3 flex items-center justify-center gap-2 text-xs font-semibold text-slate-300">
+              <span class="material-symbols-outlined text-primary text-[16px]">show_chart</span> <span
+                id="cetesSpread">--</span>
+            </div>
+            <div
+              class="flex-1 bg-white/5 border border-white/10 rounded-xl py-2 px-3 flex items-center justify-center gap-2 text-xs font-semibold text-slate-300">
+              <span class="material-symbols-outlined text-primary text-[16px]">account_balance</span> <span
+                id="tiieSpread">--</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="bg-card-dark p-5 rounded-2xl border border-white/5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-bold uppercase tracking-widest text-slate-400">Curva de Rendimientos</h2>
+            <div class="flex gap-2 text-[10px] font-bold uppercase tracking-widest">
+              <span class="text-primary">Cetes</span>
+              <span class="text-slate-500">Bonos M</span>
+            </div>
+          </div>
+          <div id="yieldCurveContainer" class="relative w-full h-32 mb-2">
+            <canvas id="yieldCurveChart"></canvas>
+          </div>
+          <p id="yieldCurveError" class="text-[10px] text-danger text-center mt-2 hidden">Error cargando curva</p>
+        </section>
+
+        <section class="bg-card-dark p-5 rounded-2xl border border-white/5">
+          <div class="flex items-center justify-between mb-5">
+            <h2 class="text-sm font-bold uppercase tracking-widest text-slate-400">Eventos Macro</h2>
+            <a href="#" class="text-xs text-primary font-medium hover:underline">Ver todo</a>
+          </div>
+          <div id="economicCalendar" class="space-y-4 calendar-list">
+            <p class="text-xs text-slate-500 text-center">Cargando eventos...</p>
+          </div>
+        </section>
+
+        <section>
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Expectativas de Mercado</h2>
+          </div>
+          <div id="expectationsCards" class="grid grid-cols-2 gap-3 indicator-cards">
+            <p class="text-xs text-slate-500 text-center col-span-2">Cargando...</p>
+          </div>
+          <div id="inflationWarning"
+            class="hidden mt-3 p-2 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-400 text-[10px] text-center">
+          </div>
+        </section>
+
+        <section>
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Monitor Macroeconómico</h2>
+          </div>
+          <div id="macroCards" class="grid gap-3 indicator-cards grid-cols-1"></div>
+        </section>
+      </div>
+
+      <!-- PESTAÑA 3: Calculadoras -->
+      <div id="calculatorsView" class="view-content p-4 hidden space-y-6">
+        <!-- Calculator 1: UDI Converter -->
+        <section class="space-y-3">
+          <div class="flex items-center justify-between px-1">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary text-sm">calculate</span>
+              <h2 class="text-sm font-bold uppercase tracking-widest text-slate-400">Calculadora de UDIs</h2>
+            </div>
+            <span id="calcModeLabel" class="text-[10px] font-bold text-slate-500">UDIs → Pesos</span>
+          </div>
+          <div class="glass-card bg-card-dark rounded-xl p-5 space-y-4">
+            <div class="relative">
+              <input type="number" id="calcAmount"
+                class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:ring-1 focus:ring-primary outline-none text-white text-lg font-medium transition-all calc-input"
+                placeholder="0.00" step="0.01">
+            </div>
+            <div class="flex justify-center -my-3 relative z-10 w-full">
+              <button id="swapMode"
+                class="bg-primary/15 text-primary border border-primary/30 w-8 h-8 rounded-full flex items-center justify-center hover:bg-primary/25 active:scale-95 transition-transform"
+                title="Intercambiar modo">
+                <span class="material-symbols-outlined text-sm font-bold">swap_vert</span>
+              </button>
+            </div>
+            <div class="flex flex-col items-center justify-center gap-1 mt-6">
+              <p class="text-[9px] uppercase font-bold text-slate-500 tracking-widest">Resultado</p>
+              <div id="calcResult" class="text-3xl font-bold text-white compact-result placeholder">El
+                resultado aparecerá aquí</div>
+              <div id="calcDate" class="text-[9px] text-slate-500 mt-1 italic">...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- FIX Buscador -->
+        <section class="space-y-3">
+          <div class="flex items-center gap-2 px-1">
+            <span class="material-symbols-outlined text-primary text-sm">history</span>
+            <h2 class="text-sm font-bold uppercase tracking-widest text-slate-400">Consultar Tipo de Cambio FIX</h2>
+          </div>
+          <div class="glass-card bg-card-dark rounded-xl p-5">
+            <div class="flex gap-3">
+              <div class="flex-1 relative">
+                <span
+                  class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-lg pointer-events-none">calendar_today</span>
+                <input id="fixDateInput" type="date"
+                  class="w-full bg-input-dark border border-white/5 rounded-lg pl-10 pr-4 py-2 text-sm text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all calc-input">
+              </div>
+              <button id="findFixBtn"
+                class="bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 px-4 rounded-lg flex items-center justify-center transition active:scale-95">
+                <span class="material-symbols-outlined text-sm">search</span>
+              </button>
+            </div>
+            <div id="fixResult"
+              class="mt-4 flex items-center justify-between p-3 border-t border-white/5 compact-result placeholder text-sm font-bold">
+              Selecciona una fecha
+            </div>
+          </div>
+        </section>
+
+        <!-- Fiscal Update -->
+        <section class="space-y-3">
+          <div class="flex items-center gap-2 px-1">
+            <span class="material-symbols-outlined text-primary text-sm">update</span>
+            <h2 class="text-sm font-bold uppercase tracking-widest text-slate-400">Actualización Fiscal (INPC)</h2>
+          </div>
+          <div class="glass-card bg-card-dark rounded-xl p-5 space-y-4">
+            <div class="space-y-4">
+              <div class="relative">
+                <label class="text-[10px] uppercase font-bold text-slate-500 ml-1 mb-1 block">Monto Original</label>
+                <input id="fiscalAmount" type="number"
+                  class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 focus:ring-1 focus:ring-primary outline-none text-white font-medium calc-input"
+                  placeholder="0.00" step="0.01">
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="text-[10px] uppercase font-bold text-slate-500 ml-1 block">Mes Inicial</label>
+                  <input id="fiscalInitialDate" type="month"
+                    class="w-full bg-white/5 border border-white/10 rounded px-2 py-2 text-xs text-white outline-none calc-input focus:ring-1 focus:ring-primary">
+                </div>
+                <div>
+                  <label class="text-[10px] uppercase font-bold text-slate-500 ml-1 block">Mes Final</label>
+                  <input id="fiscalFinalDate" type="month"
+                    class="w-full bg-white/5 border border-white/10 rounded px-2 py-2 text-xs text-white outline-none calc-input focus:ring-1 focus:ring-primary">
+                </div>
+              </div>
+            </div>
+            <button id="calculateFiscal"
+              class="w-full bg-primary/15 py-3 rounded-lg text-primary border border-primary/30 font-bold uppercase tracking-wider text-sm hover:bg-primary/25 active:scale-95 transition-all mt-2">
+              Proyectar Monto Ajustado
+            </button>
+
+            <div id="fiscalResultContainer"
+              class="hidden grid grid-cols-2 gap-3 pt-2 fiscal-results mt-2 border-t border-white/5">
+              <div class="bg-white/5 rounded-lg p-3 border border-white/5 result-item technical">
+                <p class="text-[9px] uppercase font-bold text-slate-500 mb-1">Factor INPC</p>
+                <div id="fiscalFactor" class="text-sm font-bold text-slate-200">—</div>
+              </div>
+              <div class="bg-white/5 rounded-lg p-3 border border-white/5 result-item highlight">
+                <p class="text-[9px] uppercase font-bold text-slate-500 mb-1">Monto Act.</p>
+                <div id="fiscalUpdatedAmount" class="text-sm font-bold text-white">—</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- PESTAÑA 4: Ajustes -->
+      <div id="settingsView" class="view-content p-4 hidden">
+        <section class="mb-6">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">Ajustes Rápidos</h2>
+          <p class="text-[10px] text-slate-500 mb-4 block">Configura alertas y acceso al SIE Banxico.</p>
+
+          <div class="glass-card bg-card-dark p-4 rounded-xl mb-4">
+            <label class="text-[10px] uppercase font-bold text-slate-500 ml-1 block mb-2">Umbral de Volatilidad USD
+              (%)</label>
+            <div class="flex items-center gap-3">
+              <input id="volatThreshold" type="number" step="0.1" min="0" value="0.5"
+                class="w-24 bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white outline-none focus:ring-primary focus:ring-1">
+              <span class="text-[10px] text-slate-500">Alerta si el dólar varía más de este % (30m)</span>
+            </div>
+          </div>
+
+          <button id="openAdvancedSettings"
+            class="w-full flex items-center justify-center gap-2 bg-primary/15 py-3 rounded-lg text-primary border border-primary/30 font-bold text-sm hover:bg-primary/25 active:scale-95 transition-all">
+            <span class="material-symbols-outlined text-sm">settings</span> Personalizar Experiencia
+          </button>
+        </section>
+      </div>
+
+      <!-- Vista de Historial / View Switcher -->
+      <div id="historicalView"
+        class="view-content hidden absolute inset-0 bg-background-dark z-[60] overflow-y-auto w-full h-full">
+        <div
+          class="flex items-center gap-3 p-4 sticky top-0 bg-background-dark/95 backdrop-blur-md z-10 border-b border-slate-800">
+          <button id="backToMain"
+            class="text-slate-400 hover:text-white p-2 flex items-center rounded-lg hover:bg-slate-800 transition active:scale-95">
+            <span class="material-symbols-outlined">arrow_back</span>
+          </button>
+          <h3 id="historicalTitle" class="text-xs font-bold text-white uppercase tracking-widest">Historial</h3>
         </div>
 
-        <div class="real-rate-monitor">
-          <div class="label-container">
-            <span id="inflLabel" class="label-item">Inflación: --</span>
-            <span id="targetLabel" class="label-item">Tasa Objetivo: --</span>
+        <div class="p-4 space-y-4">
+          <div class="bg-slate-900/50 p-2 rounded-xl border border-slate-800">
+            <div id="chartContainer" class="relative w-full h-[220px]">
+              <canvas id="historyChart"></canvas>
+            </div>
           </div>
-          <div class="real-rate-bar-container">
-            <div id="realRateInflationBar" class="bar-segment inflation-bar"></div>
-            <div id="realRateProfitBar" class="bar-segment profit-bar"></div>
+
+          <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-800 space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-[10px] text-slate-500 uppercase font-bold ml-1 mb-1 block">Desde</label>
+                <input type="date" id="historicalStartDate"
+                  class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary uppercase">
+              </div>
+              <div>
+                <label class="text-[10px] text-slate-500 uppercase font-bold ml-1 mb-1 block">Hasta</label>
+                <input type="date" id="historicalEndDate"
+                  class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary uppercase">
+              </div>
+            </div>
+            <div class="flex gap-3">
+              <button id="historicalUpdate"
+                class="flex-1 bg-primary/15 text-primary border border-primary/30 font-bold py-2 rounded-lg hover:bg-primary/25 active:scale-95 transition-all text-sm">Actualizar</button>
+              <button id="exportCsv"
+                class="hidden flex-none bg-primary/15 text-primary border border-primary/30 px-4 font-bold rounded-lg hover:bg-primary/25 active:scale-95 transition-all text-sm">CSV</button>
+            </div>
           </div>
-          <div id="realRateDescription">
-            Calculando rendimiento real...
+
+          <div id="historicalTableContainer"
+            class="bg-slate-900/50 rounded-xl overflow-hidden border border-slate-800 max-h-60 overflow-y-auto hidden">
           </div>
+          <div id="historicalError" class="text-[11px] text-rose-500 text-center mt-2 hidden"></div>
         </div>
       </div>
 
-      <p class="muted" style="text-align: center; margin-top: 8px;">
-        Fuente: SIE Banxico &middot; <a href="https://alasha.biz" target="_blank" class="link">alasha.biz</a>
-      </p>
+    </main>
+
+    <!-- Toast / Loading UI -->
+    <div id="toast"
+      class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-primary text-background-dark font-bold px-4 py-2 rounded flex items-center shadow-lg transition-transform duration-300 translate-y-20 z-[70] text-[11px] uppercase tracking-wider hidden">
+      ¡Copiado!</div>
+    <div id="loading"
+      class="fixed top-5 right-5 z-[70] hidden bg-background-dark/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-primary/20 flex gap-2 items-center justify-center shadow-lg w-auto">
+      <span class="material-symbols-outlined animate-spin text-primary text-sm">sync</span>
+      <span id="loadingText" class="text-[10px] text-primary font-bold uppercase tracking-wider">Cargando...</span>
     </div>
 
-    <!-- Pestaña 2: Análisis (Expectativas + Macro) -->
-    <div id="analysisView" class="view-content" style="display:none">
-      <div class="section">
-        <div class="section-header">
-          <h3>Expectativas de Mercado</h3>
-        </div>
-        <div id="expectationsCards" class="indicator-cards">
-          <p class="muted" style="text-align:center">Cargando expectativas...</p>
-        </div>
-        <div id="inflationWarning" class="alert-note" style="display:none"></div>
-        <div class="spread-note" style="text-align:center; margin-top:12px">
-          Promedio de especialistas (Encuesta Banxico)
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-header">
-          <h3>Monitor Macroeconómico</h3>
-        </div>
-        <div id="macroCards" class="indicator-cards">
-          <p class="muted" style="text-align:center">Cargando actividad...</p>
-        </div>
-      </div>
+    <!-- Ambient Glow -->
+    <div class="fixed top-[20%] -left-20 w-64 h-64 bg-primary/10 rounded-full blur-[80px] -z-10 pointer-events-none">
     </div>
-    <!-- Pestaña 2: Calculadoras (UDIs + Fiscal) -->
-    <div id="calculatorsView" class="view-content" style="display:none">
-      <!-- Calculadora de UDIs -->
-      <div class="section">
-        <div class="section-header">
-          <h3>Calculadora de UDIs</h3>
-          <span id="calcModeLabel" class="muted">UDIs → Pesos</span>
-        </div>
-
-        <div class="calc-grid">
-          <div class="calc-field">
-            <input type="number" id="calcAmount" class="calc-input" placeholder="Monto a convertir" step="0.01">
-          </div>
-          <div class="swap-btn-container">
-            <button id="swapMode" class="icon-btn" title="Intercambiar modo (Pesos/UDIs)"
-              style="font-size: 20px;">⇅</button>
-          </div>
-        </div>
-
-        <div id="calcResult" class="compact-result placeholder">
-          El resultado aparecerá aquí
-        </div>
-        <div id="calcDate" class="muted" style="text-align:center; margin-top:12px; font-size: 11px;"></div>
-      </div>
-
-      <div class="section">
-        <div class="section-header">
-          <h3>Actualización Fiscal (INPC)</h3>
-        </div>
-
-        <div class="calc-field" style="margin-bottom: 20px;">
-          <label class="muted">Monto Original</label>
-          <input type="number" id="fiscalAmount" class="calc-input" placeholder="0.00" step="0.01">
-        </div>
-
-        <div class="calc-grid" style="align-items: flex-start;">
-          <div class="calc-field">
-            <label class="muted">Mes Inicial</label>
-            <input type="month" id="fiscalInitialDate" class="calc-input">
-          </div>
-          <div class="calc-field">
-            <label class="muted">Mes Final</label>
-            <input type="month" id="fiscalFinalDate" class="calc-input">
-          </div>
-        </div>
-
-        <button id="calculateFiscal" class="btn" style="width: 100%; margin-top: 10px; padding: 12px;">Calcular
-          Actualización</button>
-
-        <div id="fiscalResultContainer" class="fiscal-results" style="display: none;">
-          <div class="result-item technical">
-            <label class="muted">Factor</label>
-            <div id="fiscalFactor">—</div>
-          </div>
-          <div class="result-item highlight">
-            <label>Actualizado</label>
-            <div id="fiscalUpdatedAmount">—</div>
-          </div>
-        </div>
-      </div>
-      <p class="caption">Basado en Serie SP1 (INPC) &middot; Banxico</p>
+    <div class="fixed bottom-0 -right-20 w-64 h-64 bg-emerald-500/5 rounded-full blur-[80px] -z-10 pointer-events-none">
     </div>
-
-    <!-- Pestaña 3: Configuración -->
-    <div id="settingsView" class="view-content" style="display:none">
-      <div class="section">
-        <div class="section-header">
-          <h3>Ajustes Rápidos</h3>
-        </div>
-        <p class="muted" style="margin-bottom: 24px;">Configura el comportamiento de la extensión y tu acceso al SIE
-          Banxico.</p>
-
-        <div class="field-item" style="margin-bottom: 20px;">
-          <label class="label-item">Umbral de Volatilidad (%)</label>
-          <div style="display: flex; gap: 8px; align-items: center;">
-            <input type="number" id="volatThreshold" class="calc-input" step="0.1" min="0" value="0.5"
-              style="width: 80px;">
-            <span class="muted" style="font-size: 12px;">Alerta si el dólar varía más de este %</span>
-          </div>
-        </div>
-
-        <button id="openAdvancedSettings" class="btn btn-hero" style="width: 100%; padding: 14px;">
-          Configuración Avanzada
-        </button>
-      </div>
-    </div>
-
-    <!-- Vista de Historial (View Switcher) -->
-    <div id="historicalView" class="view-content" style="display:none">
-      <div class="section">
-        <div class="view-header">
-          <button id="backToMain" class="icon-btn back-btn" title="Volver">←</button>
-          <h3 id="historicalTitle">Historial</h3>
-        </div>
-
-        <div class="calc-grid" style="align-items: flex-end; margin-top: 16px;">
-          <div class="calc-field">
-            <label class="muted">Desde</label>
-            <input type="date" id="historicalStartDate" class="calc-input">
-          </div>
-          <div class="calc-field">
-            <label class="muted">Hasta</label>
-            <input type="date" id="historicalEndDate" class="calc-input">
-          </div>
-          <button id="historicalUpdate" class="btn">Ver</button>
-          <button id="exportCsv" class="btn btn-outline" style="display:none">Exportar CSV</button>
-        </div>
-
-        <div id="historicalTableContainer" style="margin-top: 16px;"></div>
-        <div id="historicalError" class="muted" style="color:hsl(0 100% 40%); text-align:center; margin-top: 8px;">
-        </div>
-      </div>
-    </div>
-
-    <div id="toast" class="toast">¡Copiado!</div>
-    <div id="loading" class="loading" style="position: fixed; top: 22px; right: 26px; z-index: 101;"></div>
   </div>
+
   <script type="module" src="popup.js"></script>
 </body>
 

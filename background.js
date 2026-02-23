@@ -1,7 +1,148 @@
-import { DEFAULT_SERIES, BANXICO_API_BASE, ALPHAVANTAGE_API_BASE, INEGI_API_BASE } from './constants.js';
+import { DEFAULT_SERIES, BANXICO_API_BASE, INEGI_API_BASE, YIELD_CURVE_SERIES } from './constants.js';
 import { latestValidObservation } from './utils.js';
 
 // --- Background Fetch Logic ---
+
+// Note: Binance Crypto API was deprecated in favor of unified Yahoo Finance.
+
+async function fetchYahooMarketTicker(symbols = ["^GSPC", "^IXIC"]) {
+    try {
+        const fetchAsset = async (sym) => {
+            try {
+                const symQuery = encodeURIComponent(sym);
+                const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symQuery}?interval=1d&range=1d`, {
+                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                });
+                if (!r.ok) return null;
+                const json = await r.json();
+                const meta = json.chart?.result?.[0]?.meta;
+                if (!meta) return null;
+                const price = meta.regularMarketPrice;
+                const prev = meta.chartPreviousClose;
+                if (price === undefined || prev === undefined) return null;
+                const change = ((price - prev) / prev) * 100;
+                return { symbol: sym, price: price.toFixed(2), change: change.toFixed(2) };
+            } catch (err) {
+                console.warn(`[Background] Failed to fetch ticker: ${sym}`, err);
+                return null;
+            }
+        };
+
+        const results = await Promise.all(symbols.map(sym => fetchAsset(sym)));
+
+        return results.filter(r => r !== null);
+    } catch (e) {
+        console.error("[Background] Yahoo Market Ticker fetch failed:", e);
+        throw e;
+    }
+}
+
+async function fetchEconomicCalendar() {
+    try {
+        const { cachedCalendar, calendarLastUpdated } = await chrome.storage.local.get([
+            "cachedCalendar", "calendarLastUpdated"
+        ]);
+
+        // Return cache if it's less than 60 minutes old (3600000 ms)
+        if (cachedCalendar && calendarLastUpdated && (Date.now() - calendarLastUpdated < 3600000)) {
+            console.log("[Background] Serving Calendar from cache...");
+            return cachedCalendar;
+        }
+
+        const url = 'https://www.myfxbook.com/rss/forex-economic-calendar-events';
+        const r = await fetch(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            cache: "no-store"
+        });
+
+        if (!r.ok) {
+            console.error(`[Background] Calendar fetch responded with HTTP ${r.status} ${r.statusText}`);
+            throw new Error(`Error fetching calendar XML: HTTP ${r.status}`);
+        }
+
+        const xmlText = await r.text();
+
+        // Simple regex parser since DOMParser is not available in Manifest V3 Service Workers
+        const events = [];
+        const itemsRegex = /<item>([\s\S]*?)<\/item>/g;
+        let match;
+
+        while ((match = itemsRegex.exec(xmlText)) !== null) {
+            const itemBlock = match[1];
+
+            const extract = (tag) => {
+                const tagRegex = new RegExp(`<${tag}>([^<]+)<\/${tag}>`);
+                const m = itemBlock.match(tagRegex);
+                return m ? m[1].trim() : "";
+            };
+
+            const title = extract("title");
+            const link = extract("link");
+            const dateStr = extract("pubDate"); // e.g. Sat, 21 Feb 2026 00:00 GMT
+
+            // Extract Country from the URL slug (e.g. .../taiwan/...)
+            let country = "";
+            try {
+                const urlParts = link.split('/forex-economic-calendar/');
+                if (urlParts.length > 1) {
+                    const countrySlug = urlParts[1].split('/')[0].toLowerCase();
+                    // Basic map for common countries
+                    const countryMap = {
+                        "united-states": "USD", "mexico": "MXN", "euro-zone": "EUR",
+                        "japan": "JPY", "great-britain": "GBP", "canada": "CAD",
+                        "australia": "AUD", "new-zealand": "NZD", "switzerland": "CHF", "china": "CNY"
+                    };
+                    country = countryMap[countrySlug] || countrySlug.toUpperCase();
+                }
+            } catch (e) {
+                // Ignore parsing errors for country
+            }
+
+            const desc = itemBlock.match(/<description>([\s\S]*?)<\/description>/);
+            if (!desc) continue;
+
+            // tds[0] = Time left, tds[1] = Impact, tds[2] = Previous, tds[3] = Consensus, tds[4] = Actual
+            const tdsMatches = [...desc[1].matchAll(/&#60;td.*?&#62;(.*?)&#60;\/td&#62;/g)];
+            if (tdsMatches.length < 5) continue;
+
+            const impactRaw = tdsMatches[1][1].trim();
+            const previous = tdsMatches[2][1].trim();
+            const forecast = tdsMatches[3][1].trim();
+
+            let impact = "Low";
+            if (impactRaw.includes("High")) impact = "High";
+            else if (impactRaw.includes("Medium")) impact = "Medium";
+
+            // Passthrough ISO Date processing (MyFxBook pubDate is RFC-1123 format)
+            let isoDateStr = dateStr;
+            try { isoDateStr = new Date(dateStr).toISOString(); } catch (e) { }
+
+            // Filter logic: Only High Impact for USD or MXN
+            if (impact === "High" && (country === "USD" || country === "MXN")) {
+                events.push({ title, country, date: isoDateStr, time: "", forecast, previous });
+            }
+        }
+
+        const result = events;
+        await chrome.storage.local.set({
+            cachedCalendar: result,
+            calendarLastUpdated: Date.now()
+        });
+
+        return result;
+    } catch (e) {
+        console.error("[Background] Calendar fetch failed:", e);
+
+        // Fallback to cache if available
+        const { cachedCalendar } = await chrome.storage.local.get(["cachedCalendar"]);
+        if (cachedCalendar) {
+            console.log("[Background] Returning stale calendar cache due to fetch error.");
+            return cachedCalendar;
+        }
+
+        throw e;
+    }
+}
 
 async function fetchOportuno(idsCsv, token) {
     const url = `${BANXICO_API_BASE}/series/${idsCsv}/datos/oportuno?mediaType=json&token=${encodeURIComponent(token)}`;
@@ -106,183 +247,123 @@ async function fetchHistoricalData(seriesId, token, startDate, endDate) {
     return seriesData;
 }
 
-async function fetchAlphaVantage(avId, token) {
-    // avId format: AV_XAU -> symbol: XAU
-    const symbol = avId.replace("AV_", "").toUpperCase();
+async function fetchYfProxy(yfId) {
+    const symbol = yfId.replace("YF_", "").toUpperCase();
 
-    // Helper to check for common AV errors
-    const checkErrors = (json) => {
-        if (json["Error Message"]) throw new Error("Símbolo no encontrado");
-
-        const note = json["Note"] || "";
-        const info = json["Information"] || "";
-
-        if (note || info) {
-            console.warn("[Background] Alpha Vantage notice:", note || info);
-            throw new Error("Límite de API excedido (Alpha Vantage)");
-        }
-    };
-
-    // --- 1. GOLD & SILVER SPOT (Special Endpoint) ---
-    if (symbol === "XAU" || symbol === "XAG") {
-        const url = `${ALPHAVANTAGE_API_BASE}?function=GOLD_SILVER_SPOT&symbol=${symbol}&apikey=${encodeURIComponent(token)}`;
-        const r = await fetch(url, { cache: "no-store" });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const json = await r.json();
-        console.log(`[Background] AV GOLD_SILVER_SPOT response for ${symbol}:`, json);
-        checkErrors(json);
-
-        if (json.price) {
-            return {
-                val: json.price,
-                date: json.date || new Date().toISOString().split("T")[0],
-                source: "AV_SPOT"
-            };
-        }
-    }
-
-    // --- 2. TECHNICAL COMMODITIES (WTI, BRENT, GAS, etc.) ---
-    const commodities = ["WTI", "BRENT", "NATURAL_GAS", "COPPER", "ALUMINUM", "WHEAT", "CORN", "COTTON", "SUGAR", "COFFEE", "ALL_COMMODITIES"];
-    if (commodities.includes(symbol)) {
-        try {
-            const url = `${ALPHAVANTAGE_API_BASE}?function=${symbol}&apikey=${encodeURIComponent(token)}`;
-            const r = await fetch(url, { cache: "no-store" });
-            if (r.ok) {
-                const json = await r.json();
-                console.log(`[Background] AV Commodity response for ${symbol}:`, json);
-                checkErrors(json);
-                if (json.data && json.data.length > 0) {
-                    return {
-                        val: json.data[0].value,
-                        date: json.data[0].date,
-                        source: "AV_COMMODITY"
-                    };
-                }
-            }
-        } catch (e) {
-            if (e.message.includes("Límite")) throw e;
-            console.log(`[Background] Commodity fetch failed for ${symbol}`);
-        }
-    }
-
-    // --- 3. GLOBAL QUOTE (Stocks, ETFs) ---
     try {
-        const url = `${ALPHAVANTAGE_API_BASE}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${encodeURIComponent(token)}`;
-        const r = await fetch(url, { cache: "no-store" });
-        if (r.ok) {
-            const json = await r.json();
-            checkErrors(json);
-            const quote = json["Global Quote"];
-            if (quote && quote["05. price"]) {
-                return {
-                    val: quote["05. price"],
-                    date: quote["07. latest trading day"],
-                    source: "AV_QUOTE"
-                };
-            }
-        }
-    } catch (e) {
-        if (e.message.includes("Límite")) throw e;
-        console.log(`[Background] GLOBAL_QUOTE failed for ${symbol}, trying CURRENCY...`);
-    }
+        const symQuery = encodeURIComponent(symbol);
+        const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symQuery}?interval=1d&range=1d`, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            cache: "no-store"
+        });
+        if (!r.ok) throw new Error("Símbolo no encontrado");
 
-    // --- 4. CURRENCY/CRYPTO EXCHANGE RATE ---
-    const url = `${ALPHAVANTAGE_API_BASE}?function=CURRENCY_EXCHANGE_RATE&from_currency=${symbol}&to_currency=USD&apikey=${encodeURIComponent(token)}`;
-    const r = await fetch(url, { cache: "no-store" });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const json = await r.json();
-    checkErrors(json);
+        const json = await r.json();
+        const meta = json.chart?.result?.[0]?.meta;
+        if (!meta || meta.regularMarketPrice === undefined) throw new Error("Símbolo no encontrado");
 
-    const data = json["Realtime Currency Exchange Rate"];
-    if (data && data["5. Exchange Rate"]) {
         return {
-            val: data["5. Exchange Rate"],
-            date: data["6. Last Refreshed"]?.split(" ")[0], // YYYY-MM-DD
-            source: "AV_CURRENCY"
+            val: meta.regularMarketPrice.toString(),
+            date: new Date(meta.regularMarketTime * 1000).toISOString().split("T")[0],
+            source: "YF_PROXY"
         };
+    } catch (e) {
+        console.error(`[Background] YF Proxy failed for symbol ${symbol}:`, e);
+        throw new Error("Límite o error de red al buscar el ticker global.");
     }
-
-    throw new Error("No se encontraron datos para este símbolo");
 }
 
-async function fetchAlphaVantageHistorical(avId, token) {
-    const symbol = avId.replace("AV_", "").toUpperCase();
+async function fetchYfHistoricalProxy(yfId) {
+    const symbol = yfId.replace("YF_", "").toUpperCase();
 
-    let func = symbol;
-    if (symbol === "XAU") func = "GOLD";
-    if (symbol === "XAG") func = "SILVER";
+    try {
+        const symQuery = encodeURIComponent(symbol);
+        // Yahoo historical data. We'll ask for 1mo or 3mo to be safe.
+        const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symQuery}?interval=1d&range=3mo`, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            cache: "no-store"
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
 
-    const url = `${ALPHAVANTAGE_API_BASE}?function=${func}&interval=daily&apikey=${encodeURIComponent(token)}`;
-    const response = await fetch(url, { cache: "no-store" });
+        const json = await r.json();
+        const result = json.chart?.result?.[0];
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const json = await response.json();
-
-    if (json["Information"] || json["Note"]) {
-        throw new Error("Límite de API excedido (Alpha Vantage)");
-    }
-
-    if (!json.data || !Array.isArray(json.data)) {
-        // Fallback for stocks
-        const stockUrl = `${ALPHAVANTAGE_API_BASE}?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${encodeURIComponent(token)}`;
-        const stockResp = await fetch(stockUrl, { cache: "no-store" });
-        const stockJson = await stockResp.json();
-
-        if (stockJson["Information"] || stockJson["Note"]) {
-            throw new Error("Límite de API excedido (Alpha Vantage)");
+        if (!result || !result.timestamp || !result.indicators.quote[0].close) {
+            throw new Error("Datos históricos no encontrados.");
         }
 
-        const timeSeries = stockJson["Time Series (Daily)"];
-        if (timeSeries) {
-            return Object.entries(timeSeries).map(([date, values]) => ({
-                fecha: date,
-                dato: values["4. close"]
-            })).reverse();
+        const timestamps = result.timestamp;
+        const closes = result.indicators.quote[0].close;
+        const data = [];
+
+        // Return newest first, just like the old AV function did
+        for (let i = timestamps.length - 1; i >= 0; i--) {
+            if (closes[i] !== null && closes[i] !== undefined) {
+                data.push({
+                    fecha: new Date(timestamps[i] * 1000).toISOString().split("T")[0],
+                    dato: closes[i].toFixed(4)
+                });
+            }
         }
+        return data;
 
-        throw new Error("No se encontraron datos históricos.");
+    } catch (e) {
+        console.error(`[Background] YF Historical Proxy failed for ${symbol}:`, e);
+        throw new Error("No se pudieron cargar datos históricos globales.");
     }
-
-    return json.data.map(item => ({
-        fecha: item.date,
-        dato: item.value
-    })).reverse();
 }
 
 async function fetchInegiSeries(inegiId, token) {
     const id = inegiId.replace("INEGI_", "");
-    const url = `${INEGI_API_BASE}/INDICATOR/${id}/es/00/true/BISE/2.0/${encodeURIComponent(token)}?type=json`;
+    const urls = [
+        `${INEGI_API_BASE}/INDICATOR/${id}/es/00/true/BISE/2.0/${encodeURIComponent(token)}?type=json`,
+        `${INEGI_API_BASE}/INDICATOR/${id}/es/00/true/BIE/2.0/${encodeURIComponent(token)}?type=json`
+    ];
 
-    const r = await fetch(url, { cache: "no-store" });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const json = await r.json();
-    console.log(`[Background] INEGI response for ${id}:`, JSON.stringify(json).substring(0, 500));
-
-    const obs = json.Series?.[0]?.OBSERVATIONS?.[0];
-    if (obs) {
-        return {
-            val: obs.OBS_VALUE,
-            date: obs.TIME_PERIOD,
-            source: "INEGI"
-        };
+    for (const url of urls) {
+        try {
+            const r = await fetch(url, { cache: "no-store" });
+            if (r.ok) {
+                const json = await r.json();
+                const obs = json.Series?.[0]?.OBSERVATIONS?.[0];
+                if (obs) {
+                    return {
+                        val: obs.OBS_VALUE,
+                        date: obs.TIME_PERIOD,
+                        source: "INEGI"
+                    };
+                }
+            }
+        } catch (e) {
+            console.warn(`[Background] INEGI fetch failed for ${url}`);
+        }
     }
-    throw new Error("No se obtuvieron datos de INEGI.");
+    throw new Error("No se obtuvieron datos de INEGI (ni en BISE ni en BIE).");
 }
 
 async function fetchInegiHistorical(inegiId, token) {
     const id = inegiId.replace("INEGI_", "");
-    const url = `${INEGI_API_BASE}/INDICATOR/${id}/es/00/false/BISE/2.0/${encodeURIComponent(token)}?type=json`;
+    const urls = [
+        `${INEGI_API_BASE}/INDICATOR/${id}/es/00/false/BISE/2.0/${encodeURIComponent(token)}?type=json`,
+        `${INEGI_API_BASE}/INDICATOR/${id}/es/00/false/BIE/2.0/${encodeURIComponent(token)}?type=json`
+    ];
 
-    const r = await fetch(url, { cache: "no-store" });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const json = await r.json();
-
-    const observations = json.Series?.[0]?.OBSERVATIONS;
-    if (observations && Array.isArray(observations)) {
-        return observations.map(obs => ({
-            fecha: obs.TIME_PERIOD,
-            dato: obs.OBS_VALUE
-        })); // INEGI generally returns historical in order or enough for chart
+    for (const url of urls) {
+        try {
+            const r = await fetch(url, { cache: "no-store" });
+            if (r.ok) {
+                const json = await r.json();
+                const observations = json.Series?.[0]?.OBSERVATIONS;
+                if (observations && Array.isArray(observations)) {
+                    return observations.map(obs => ({
+                        fecha: obs.TIME_PERIOD,
+                        dato: obs.OBS_VALUE
+                    }));
+                }
+            }
+        } catch (e) {
+            console.warn(`[Background] INEGI historical fetch failed for ${url}`);
+        }
     }
     throw new Error("No se encontraron datos históricos en INEGI.");
 }
@@ -300,11 +381,11 @@ async function refreshDashboardData() {
     lastRefreshStart = now;
     try {
         console.log("[Background] Refreshing dashboard data...");
-        const { sieToken, avToken, inegiToken, sieSeries, cachedSeriesData } = await chrome.storage.local.get(["sieToken", "avToken", "inegiToken", "sieSeries", "cachedSeriesData"]);
+        const { sieToken, inegiToken, sieSeries, cachedSeriesData } = await chrome.storage.local.get(["sieToken", "inegiToken", "sieSeries", "cachedSeriesData"]);
 
         const prevMap = new Map(cachedSeriesData?.map(s => [s.id, s.val]) || []);
         const prevDateMap = new Map(cachedSeriesData?.map(s => [s.id, s.date]) || []);
-        
+
         // Master cache map to update
         const cacheMap = new Map(cachedSeriesData?.map(s => [s.id, s]) || []);
 
@@ -320,9 +401,9 @@ async function refreshDashboardData() {
         const required = ["SP68257", "SF61745", "SP74665", "SP30579", "SR14447", "SR14138", "SR17692", "SE27803", "SF43783", ...DEFAULT_SERIES.map(s => s.id)];
         let ids = [...new Set([...list.map(s => s.id), ...required])].filter(id => !!id);
 
-        const avIds = ids.filter(id => id.startsWith("AV_"));
+        const yfIds = ids.filter(id => id.startsWith("YF_"));
         const inegiIds = ids.filter(id => id.startsWith("INEGI_"));
-        const banxicoIds = ids.filter(id => !id.startsWith("AV_") && !id.startsWith("INEGI_"));
+        const banxicoIds = ids.filter(id => !id.startsWith("YF_") && !id.startsWith("INEGI_"));
 
         // 1. Fetch Banxico (Batch)
         if (banxicoIds.length > 0 && sieToken) {
@@ -335,40 +416,33 @@ async function refreshDashboardData() {
             }
         }
 
-        // 2. Fetch Alpha Vantage (Sequential)
-        if (avIds.length > 0) {
-            if (!avToken) {
-                avIds.forEach(id => cacheMap.set(id, { id, error: "Falta API Key (Alpha Vantage)" }));
-                await saveCache();
-            } else {
-                for (let i = 0; i < avIds.length; i++) {
-                    const id = avIds[i];
-                    try {
-                        const avData = await fetchAlphaVantage(id, avToken);
-                        const cachedVal = prevMap.get(id);
-                        const cachedDate = prevDateMap.get(id);
-                        let prevVal = (cachedVal && cachedVal !== avData.val) ? cachedVal : null;
-                        let prevDate = (cachedDate && cachedDate !== avData.date) ? cachedDate : null;
+        // 2. Fetch Yahoo Finance / Commodities (Sequential)
+        if (yfIds.length > 0) {
+            for (let i = 0; i < yfIds.length; i++) {
+                const id = yfIds[i];
+                try {
+                    const yfData = await fetchYfProxy(id);
+                    const cachedVal = prevMap.get(id);
+                    const cachedDate = prevDateMap.get(id);
+                    let prevVal = (cachedVal && cachedVal !== yfData.val) ? cachedVal : null;
+                    let prevDate = (cachedDate && cachedDate !== yfData.date) ? cachedDate : null;
 
-                        cacheMap.set(id, {
-                            id,
-                            val: avData.val,
-                            date: avData.date,
-                            prev: prevVal,
-                            prevDate: prevDate,
-                            source: avData.source,
-                            error: null
-                        });
-                        await saveCache();
+                    cacheMap.set(id, {
+                        id,
+                        val: yfData.val,
+                        date: yfData.date,
+                        prev: prevVal,
+                        prevDate: prevDate,
+                        source: yfData.source,
+                        error: null
+                    });
+                    await saveCache();
 
-                        // Delay between requests, but not after the last one
-                        if (i < avIds.length - 1) await new Promise(r => setTimeout(r, 15000));
-                    } catch (e) {
-                        const isLimit = e.message.includes("Límite");
-                        cacheMap.set(id, { id, error: isLimit ? "Límite API alcanzado" : e.message });
-                        await saveCache();
-                        if (isLimit) break;
-                    }
+                    // Delay between requests, but not after the last one
+                    if (i < yfIds.length - 1) await new Promise(r => setTimeout(r, 2000));
+                } catch (e) {
+                    cacheMap.set(id, { id, error: e.message });
+                    await saveCache();
                 }
             }
         }
@@ -432,12 +506,11 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 async function checkUSDVolatility() {
     try {
-        const { avToken, volatilityThreshold, lastFixVal } = await chrome.storage.local.get(["avToken", "volatilityThreshold", "lastFixVal"]);
-        if (!avToken) return;
+        const { volatilityThreshold, lastFixVal } = await chrome.storage.local.get(["volatilityThreshold", "lastFixVal"]);
 
-        const avId = "AV_USD_MXN";
-        const avData = await fetchAlphaVantage(avId, avToken);
-        const currentVal = parseFloat(avData.val);
+        const yfId = "YF_MXN=X";
+        const yfData = await fetchYfProxy(yfId);
+        const currentVal = parseFloat(yfData.val);
         const threshold = parseFloat(volatilityThreshold) || 1.0;
 
         if (lastFixVal) {
@@ -470,16 +543,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     if (request.type === "FETCH_HISTORICAL") {
         const { seriesId } = request;
-        const isAv = seriesId.startsWith("AV_");
+        const isYf = seriesId.startsWith("YF_");
         const isInegi = seriesId.startsWith("INEGI_");
 
-        if (isAv) {
-            chrome.storage.local.get("avToken").then(({ avToken }) => {
-                if (!avToken) return sendResponse({ success: false, error: "API Key de Alpha Vantage faltante" });
-                fetchAlphaVantageHistorical(seriesId, avToken)
-                    .then(data => sendResponse({ success: true, data }))
-                    .catch(e => sendResponse({ success: false, error: e.message }));
-            });
+        if (isYf) {
+            fetchYfHistoricalProxy(seriesId)
+                .then(data => sendResponse({ success: true, data }))
+                .catch(e => sendResponse({ success: false, error: e.message }));
         } else if (isInegi) {
             chrome.storage.local.get("inegiToken").then(({ inegiToken }) => {
                 if (!inegiToken) return sendResponse({ success: false, error: "Token INEGI faltante" });
@@ -497,6 +567,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
         return true;
     }
+
+    if (request.type === "FETCH_YIELD_CURVE") {
+        chrome.storage.local.get("sieToken").then(({ sieToken }) => {
+            if (!sieToken) return sendResponse({ success: false, error: "Para ver la Curva de Rendimientos necesitas configurar el Token SIE de Banxico." });
+
+            const ids = YIELD_CURVE_SERIES.map(s => s.id);
+            fetchBanxicoSeries(ids, sieToken)
+                .then(data => sendResponse({ success: true, data }))
+                .catch(e => sendResponse({ success: false, error: e.message }));
+        });
+        return true;
+    }
+
+    if (request.type === "FETCH_ECONOMIC_CALENDAR") {
+        fetchEconomicCalendar()
+            .then(data => sendResponse({ success: true, data }))
+            .catch(e => sendResponse({ success: false, error: e.message }));
+        return true;
+    }
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -506,7 +595,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
         // But to be safe and simple, let it refresh.
     }
 
-    if (area === "local" && (changes.sieToken || changes.avToken || changes.inegiToken || changes.sieSeries)) {
+    if (area === "local" && (changes.sieToken || changes.inegiToken || changes.sieSeries)) {
         console.log("[Background] Configuration changed, refreshing data...");
         refreshDashboardData();
     }
@@ -540,8 +629,14 @@ async function migrateStaleIds() {
 }
 
 // --- Initialization ---
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
     chrome.alarms.create("refresh", { periodInMinutes: 60 });
+
+    // Open onboarding page on fresh install
+    if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
+        chrome.tabs.create({ url: "onboarding.html" });
+    }
+
     migrateStaleIds().then(() => refreshDashboardData());
 });
 

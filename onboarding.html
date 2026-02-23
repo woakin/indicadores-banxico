@@ -6,684 +6,333 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Configuración • Hub de Indicadores</title>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap"
-    rel="stylesheet">
-  <style>
-    :root {
-      --primary: #1e293b;
-      --accent: #10b981;
-      --bg-main: #f8fafc;
-      --bg-side: #ffffff;
-      --border: #e2e8f0;
-      --text-main: #0f172a;
-      --text-muted: #64748b;
-      --radius: 12px;
-      --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-      --sidebar-width: 240px;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      background: var(--bg-main);
-      color: var(--text-main);
-      font-family: 'Manrope', -apple-system, sans-serif;
-      height: 100vh;
-      display: flex;
-      overflow: hidden;
-    }
-
-    /* --- Sidebar --- */
-    .sidebar {
-      width: var(--sidebar-width);
-      background: var(--bg-side);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      padding: 24px 0;
-      flex-shrink: 0;
-    }
-
-    .sidebar-header {
-      padding: 0 24px 24px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 24px;
-    }
-
-    .brand {
-      font-family: 'Poppins', sans-serif;
-      font-weight: 800;
-      font-size: 1.25rem;
-      color: var(--primary);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .brand span {
-      background: var(--primary);
-      color: white;
-      font-size: 0.65rem;
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
-
-    .nav-list {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      flex-grow: 1;
-    }
-
-    .nav-item {
-      padding: 4px 12px;
-    }
-
-    .nav-link {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
-      text-decoration: none;
-      color: var(--text-muted);
-      font-weight: 600;
-      border-radius: var(--radius);
-      transition: all 0.2s;
-      cursor: pointer;
-    }
-
-    .nav-link:hover {
-      background: #f1f5f9;
-      color: var(--primary);
-    }
-
-    .nav-link.active {
-      background: #e2e8f0;
-      color: var(--primary);
-    }
-
-    .nav-status {
-      margin-left: auto;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #cbd5e1;
-    }
-
-    .nav-status.online {
-      background: var(--accent);
-    }
-
-    /* --- Main Workspace --- */
-    .workspace {
-      flex-grow: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    .top-bar {
-      height: 64px;
-      background: white;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      padding: 0 32px;
-      justify-content: space-between;
-    }
-
-    .main-content {
-      flex-grow: 1;
-      padding: 32px;
-      overflow-y: auto;
-      display: flex;
-      gap: 32px;
-      max-width: 1200px;
-      margin: 0 auto;
-      width: 100%;
-    }
-
-    .work-area {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .selection-panel {
-      width: 320px;
-      flex-shrink: 0;
-    }
-
-    /* --- Cards & UI Elements --- */
-    .card {
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 24px;
-      box-shadow: var(--shadow);
-      margin-bottom: 24px;
-    }
-
-    .card-header {
-      margin-bottom: 20px;
-    }
-
-    .card h2 {
-      font-family: 'Poppins', sans-serif;
-      font-size: 1.25rem;
-      margin: 0;
-    }
-
-    .card p {
-      color: var(--text-muted);
-      font-size: 0.875rem;
-      margin: 4px 0 0;
-    }
-
-    .section-divider {
-      height: 1px;
-      background: var(--border);
-      margin: 24px 0;
-    }
-
-    .locked-overlay {
-      position: relative;
-    }
-
-    .locked-overlay.locked>*:not(.unlock-notice) {
-      opacity: 0.4;
-      pointer-events: none;
-      filter: grayscale(1);
-    }
-
-    .unlock-notice {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(255, 255, 255, 0.9);
-      padding: 16px 24px;
-      border-radius: var(--radius);
-      border: 1px dashed var(--border);
-      text-align: center;
-      z-index: 10;
-      width: 80%;
-      display: none;
-    }
-
-    .locked-overlay.locked .unlock-notice {
-      display: block;
-    }
-
-    /* --- Forms & Buttons --- */
-    .form-group {
-      margin-bottom: 16px;
-    }
-
-    label {
-      display: block;
-      font-weight: 700;
-      font-size: 0.825rem;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-    }
-
-    input[type=text],
-    select {
-      width: 100%;
-      padding: 12px 16px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      font-size: 0.95rem;
-      transition: all 0.2s;
-    }
-
-    input:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(30, 41, 59, 0.1);
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 10px 20px;
-      border-radius: 8px;
-      font-weight: 700;
-      cursor: pointer;
-      border: none;
-      transition: all 0.2s;
-      font-size: 0.9rem;
-      gap: 8px;
-    }
-
-    .btn-primary {
-      background: var(--primary);
-      color: white;
-    }
-
-    .btn-primary:hover {
-      background: #0f172a;
-      transform: translateY(-1px);
-    }
-
-    .btn-outline {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text-main);
-    }
-
-    .btn-outline:hover {
-      background: #f8fafc;
-      border-color: var(--text-muted);
-    }
-
-    .btn-ghost {
-      background: transparent;
-      color: var(--text-muted);
-    }
-
-    .btn-ghost:hover {
-      background: #f1f5f9;
-      color: var(--primary);
-    }
-
-    .status-msg {
-      font-size: 0.8rem;
-      margin-top: 8px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    /* --- Chips & Lists --- */
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .chip-btn {
-      background: #f1f5f9;
-      border: 1px solid var(--border);
-      padding: 6px 12px;
-      border-radius: 999px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .chip-btn:hover {
-      background: white;
-      border-color: var(--primary);
-    }
-
-    .selected-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .selected-item {
-      background: white;
-      border: 1px solid var(--border);
-      padding: 12px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .selected-item-info {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .selected-item-title {
-      font-weight: 700;
-      font-size: 0.85rem;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .selected-item-id {
-      font-size: 0.7rem;
-      color: var(--text-muted);
-    }
-
-    .actions {
-      display: flex;
-      gap: 4px;
-    }
-
-    .action-btn {
-      background: none;
-      border: none;
-      padding: 4px;
-      cursor: pointer;
-      color: var(--text-muted);
-      border-radius: 4px;
-    }
-
-    .action-btn:hover {
-      background: #f1f5f9;
-      color: var(--primary);
-    }
-
-    .badge-source {
-      font-size: 0.6rem;
-      padding: 1px 4px;
-      border-radius: 3px;
-      text-transform: uppercase;
-      font-weight: 800;
-      margin-left: 6px;
-    }
-
-    .source-mx {
-      background: #dcfce7;
-      color: #166534;
-    }
-
-    .source-av {
-      background: #dbeafe;
-      color: #1e40af;
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    /* --- Modal --- */
-    .modal-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 1000;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      backdrop-filter: blur(2px);
-    }
-
-    .modal-overlay.open {
-      display: flex;
-    }
-
-    .modal {
-      background: white;
-      padding: 32px;
-      border-radius: var(--radius);
-      max-width: 550px;
-      width: 90%;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-      position: relative;
-      animation: modalSlide 0.3s ease-out;
-    }
-
-    @keyframes modalSlide {
-      from {
-        transform: translateY(20px);
-        opacity: 0;
-      }
-
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
-    }
-
-    .close-modal {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      border: none;
-      background: #f1f5f9;
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      color: var(--text-muted);
-      transition: all 0.2s;
-    }
-
-    .close-modal:hover {
-      background: #e2e8f0;
-      color: var(--destructive);
-    }
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+    rel="stylesheet" />
+  <link href="popup.css" rel="stylesheet">
 </head>
 
-<body>
-  <!-- Sidebar Navigation -->
-  <aside class="sidebar">
-    <div class="sidebar-header">
-      <div class="brand">Indicadores <span>HUB</span></div>
-    </div>
-    <ul class="nav-list">
-      <li class="nav-item">
-        <a class="nav-link active" data-provider="banxico">
-          🏠 <span>Banxico (México)</span>
-          <div id="statusBanxico" class="nav-status"></div>
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-provider="av">
-          🌍 <span>Alpha Vantage (Global)</span>
-          <div id="statusAv" class="nav-status"></div>
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-provider="inegi">
-          📈 <span>INEGI (Estadísticas)</span>
-          <div id="statusInegi" class="nav-status"></div>
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" style="opacity: 0.5; cursor: not-allowed;">
-          📊 <span>FRED (Próximamente)</span>
-        </a>
-      </li>
-    </ul>
-    <div style="padding: 24px; border-top: 1px solid var(--border);">
-      <p class="note" style="margin:0; font-size: 11px;">Hecho por <a href="https://alasha.biz" target="_blank"
-          style="color:inherit">Alasha Collective</a></p>
-    </div>
-  </aside>
-
-  <!-- Workspace area -->
-  <main class="workspace">
-    <header class="top-bar">
-      <h2 id="providerTitle">Banxico (México)</h2>
-      <div id="globalMsg" class="status-msg"></div>
-    </header>
-
-    <div class="main-content">
-      <!-- Active Provider Control Area -->
-      <section class="work-area">
-
-        <!-- Banxico View -->
-        <div id="viewBanxico" class="provider-view">
-          <div class="card">
-            <div class="card-header">
-              <h2>Conexión SIE</h2>
-              <p>Datos oficiales del Banco de México.</p>
+<body
+  class="bg-background-dark text-slate-100 font-display min-h-screen flex justify-center antialiased selection:bg-primary/30 selection:text-primary">
+  <div class="w-full max-w-7xl flex min-h-screen mx-auto relative">
+    <!-- Sidebar Navigation -->
+    <aside class="w-64 border-r border-white/5 flex flex-col shrink-0 h-screen sticky top-0">
+      <div class="py-5 px-6 border-b border-white/5 flex items-center shrink-0">
+        <div class="font-display font-extrabold text-xl text-primary flex items-center gap-2 tracking-tight">Indicadores
+          <span
+            class="bg-primary text-background-dark font-bold text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider">HUB</span>
+        </div>
+      </div>
+      <ul class="list-none p-0 mx-0 flex-grow py-6">
+        <div class="space-y-2 mt-4">
+          <!-- Hub Architecture Menu -->
+          <button data-provider="config"
+            class="w-full text-left px-4 py-3 rounded-xl font-bold text-sm bg-white/10 text-white transition-all flex items-center justify-between group shadow-sm">
+            <div class="flex items-center gap-3">
+              <span class="text-lg">⚙️</span> Configuración APIs
             </div>
-            <div class="form-group">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <label for="token">Token SIE</label>
-                <a href="https://www.banxico.org.mx/SieAPIRest/service/v1/token" target="_blank"
-                  style="font-size: 11px; font-weight: 600; text-decoration: none;">Obtener token ↗</a>
-              </div>
-              <div style="display:flex; gap:10px">
-                <input id="token" type="text" placeholder="Pega tu token aquí">
-                <button id="testSie" class="btn btn-outline">Probar</button>
-              </div>
-              <div id="msgSie" class="status-msg"></div>
+            <div class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
+          </button>
+          <button data-provider="explorer"
+            class="w-full text-left px-4 py-3 rounded-xl font-semibold text-sm text-text-muted hover:bg-white/5 hover:text-white transition-all flex items-center justify-between group">
+            <div class="flex items-center gap-3">
+              <span class="text-lg">📊</span> Explorador de Datos
             </div>
-            <button id="saveBanxico" class="btn btn-primary">Guardar Conexión</button>
-          </div>
-
-          <div id="banxicoOps" class="locked-overlay locked">
-            <div class="unlock-notice">Configura tu token para añadir indicadores de México.</div>
-            <div class="card">
-              <h2>Añadir por ID</h2>
-              <p>Busca IDs en el <a href="https://www.banxico.org.mx/SieAPIRest/service/v1/doc/catalogoSeries"
-                  target="_blank">catálogo SIE</a>.</p>
-              <div class="row" style="display:flex; gap:15px; margin-top:15px;">
-                <input id="seriesId" type="text" placeholder="Ej. SF43718" style="width: 140px;">
-                <select id="seriesType" style="width: 80px;">
-                  <option value="percent">%</option>
-                  <option value="currency">$</option>
-                  <option value="number">#</option>
-                </select>
-                <button id="addById" class="btn btn-primary">Añadir</button>
-              </div>
-              <div id="seriesMsg" class="status-msg"></div>
-            </div>
-          </div>
+          </button>
         </div>
 
-        <!-- Alpha Vantage View -->
-        <div id="viewAv" class="provider-view hidden">
-          <div class="card">
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
-              <div>
-                <h2>Conexión Global</h2>
-                <p>Commodities, Forex y Cripto vía Alpha Vantage.</p>
+      </ul>
+      <div class="p-6 border-t border-white/5 mt-auto">
+        <p class="text-[11px] text-text-muted m-0">Hecho por <a href="https://alasha.biz" target="_blank"
+            class="text-text-muted hover:text-primary transition-colors">Alasha Collective</a></p>
+      </div>
+    </aside>
+
+    <!-- Workspace area -->
+    <main class="flex-1 flex flex-col min-w-0">
+      <header
+        class="py-5 border-b border-white/5 flex items-center justify-between px-8 shrink-0 bg-background-dark/95 backdrop-blur z-10 sticky top-0">
+        <h2 id="providerTitle" class="font-display font-bold text-lg m-0 text-white">Banxico (México)</h2>
+        <div id="globalMsg" class="text-sm flex items-center gap-1.5 font-medium hidden"></div>
+      </header>
+
+      <div class="p-10 flex items-start gap-10 w-full mx-auto relative">
+        <!-- Active Provider Control Area -->
+        <section class="flex-1 min-w-0">
+
+          <!-- Hub: Configuración APIs -->
+          <div id="viewConfig" class="provider-view space-y-6">
+            <div class="bg-card-dark p-5 rounded-2xl border border-white/5">
+              <div class="mb-5">
+                <h2 class="font-display font-semibold text-lg text-white m-0">Obtén Datos de Banxico</h2>
+                <p class="text-text-muted text-sm mt-1 mb-0">Accede a tasas de interés, inflación y reportes oficiales
+                  en tiempo real.</p>
               </div>
-              <img src="assets/av-logo.png" alt="Alpha Vantage Logo"
-                style="height: 48px; border-radius: 8px; border: 1px solid var(--border); padding: 4px;">
+              <div class="mb-5">
+                <div class="flex justify-between items-center mb-2">
+                  <label for="token" class="block font-bold text-[11px] uppercase tracking-wider text-text-muted m-0">Tu
+                    Token de Acceso</label>
+                  <a href="https://www.banxico.org.mx/SieAPIRest/service/v1/token" target="_blank"
+                    class="text-[11px] font-semibold text-primary hover:text-primary-alt transition-colors no-underline">Obtener
+                    token gratis en Banxico ↗</a>
+                </div>
+                <div class="flex flex-col gap-2.5">
+                  <input id="token" type="text" placeholder="Pega tu token aquí"
+                    class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-sm font-medium text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+                </div>
+                <div id="msgSie" class="text-xs mt-2 flex items-center gap-1.5 font-medium min-h-[20px] hidden"></div>
+              </div>
+              <button id="saveBanxico"
+                class="px-5 py-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 w-full">Activar
+                Integración de Banxico</button>
             </div>
-            <div class="form-group">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <label for="avToken">API Key</label>
-                <a href="https://www.alphavantage.co/support/#api-key" target="_blank"
-                  style="font-size: 11px; font-weight: 600; text-decoration: none;">Obtener gratis ↗</a>
+
+            <div class="bg-card-dark border border-white/5 rounded-2xl p-6">
+              <h2 class="font-display font-semibold text-xl text-white m-0">Obtén Datos de INEGI</h2>
+              <p class="text-text-muted text-sm mt-1 mb-6">Accede a estadísticas sociodemográficas y económicas de
+                México.</p>
+
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <label class="text-[11px] font-bold text-text-muted uppercase tracking-wider block">Tu Token de
+                    Acceso</label>
+                  <a href="https://www.inegi.org.mx/servicios/api_indicadores.html" target="_blank"
+                    class="text-xs text-primary hover:text-primary/80 transition-colors">Obtener token gratis en INEGI
+                    ↗</a>
+                </div>
+                <div class="flex flex-col gap-2.5">
+                  <input id="inegiToken" type="text" placeholder="Pega tu token aquí"
+                    class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-sm font-medium text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+                </div>
+                <div id="msgInegi" class="text-xs mt-2 flex items-center gap-1.5 font-medium min-h-[20px] hidden"></div>
               </div>
-              <div style="display:flex; gap:10px">
-                <input id="avToken" type="text" placeholder="Ej. DEMO1234">
-                <button id="testAv" class="btn btn-outline">Probar</button>
+
+              <div class="mt-4">
+                <button id="saveInegi"
+                  class="w-full px-6 py-3 rounded-xl font-bold text-base transition-all flex items-center justify-center gap-2 bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 disabled:opacity-50 disabled:cursor-not-allowed">
+                  Activar Integración de INEGI
+                </button>
               </div>
-              <div id="msgAv" class="status-msg"></div>
             </div>
-            <p style="margin: 0 0 20px; font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;">
-              ⚠️ El plan gratuito de Alpha Vantage está limitado a <b>25 peticiones por día</b>.
-              Si necesitas más volumen, puedes adquirir un <a href="https://www.alphavantage.co/premium/"
-                target="_blank" style="color: var(--primary); font-weight: 700;">plan premium aquí</a>.
-            </p>
-            <button id="saveAv" class="btn btn-primary">Guardar Conexión</button>
+
+            <div class="bg-card-dark p-5 rounded-2xl border border-white/5">
+              <div class="flex justify-between items-start mb-5">
+                <div>
+                  <h2 class="font-display font-semibold text-lg text-white m-0">Commodities y Mercados Globales</h2>
+                  <p class="text-text-muted text-sm mt-1 mb-0">Acciones, materias primas y cripto (Vía Yahoo Finance).
+                  </p>
+                </div>
+                <div
+                  class="h-12 w-12 rounded-lg bg-primary/10 border border-white/5 flex items-center justify-center text-2xl shrink-0">
+                  🌍</div>
+              </div>
+              <p class="m-0 text-sm text-text-muted leading-relaxed">
+                <span class="text-success">✅</span> <b>No necesitas una API Key</b>. Hemos implementado un motor
+                ultra-rápido que lee materias primas y commodities en tiempo real.
+              </p>
+            </div>
           </div>
 
-          <div id="avOps" class="locked-overlay locked">
-            <div class="unlock-notice">Configura tu API Key para ver el catálogo global.</div>
-            <div class="card">
-              <h2>Catálogo de Commodities</h2>
-              <p>Haz clic para añadir a tu tablero.</p>
-              <div id="avButtons" class="chips" style="margin-top:15px"></div>
+          <!-- Hub: Explorador de Datos -->
+          <div id="viewExplorer" class="provider-view hidden space-y-6">
+            <div class="flex gap-2 overflow-x-auto no-scrollbar mb-4 border-b border-white/5 pb-4">
+              <button
+                class="explorer-filter active px-4 py-2 rounded-lg bg-primary/10 text-primary text-sm font-bold transition-colors"
+                data-filter="all">Todos</button>
+              <button
+                class="explorer-filter px-4 py-2 rounded-lg text-text-muted hover:bg-white/5 text-sm font-semibold transition-colors"
+                data-filter="banxico">Banxico</button>
+              <button
+                class="explorer-filter px-4 py-2 rounded-lg text-text-muted hover:bg-white/5 text-sm font-semibold transition-colors"
+                data-filter="inegi">INEGI</button>
+              <button
+                class="explorer-filter px-4 py-2 rounded-lg text-text-muted hover:bg-white/5 text-sm font-semibold transition-colors"
+                data-filter="yf">Mercado y Cripto</button>
             </div>
-          </div>
-        </div>
 
-        <!-- INEGI View -->
-        <div id="viewInegi" class="provider-view hidden">
-          <div class="card">
-            <div class="card-header">
-              <h2>Conexión INEGI</h2>
-              <p>Estadísticas sociodemográficas y económicas de México.</p>
-            </div>
-            <div class="form-group">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <label for="inegiToken">Token INEGI</label>
-                <a href="https://www.inegi.org.mx/servicios/api_indicadores.html" target="_blank"
-                  style="font-size: 11px; font-weight: 600; text-decoration: none;">Obtener token ↗</a>
+            <!-- Banxico Explorer -->
+            <div class="explorer-card transition-all duration-300" data-category="banxico">
+              <div id="banxicoOps" class="locked-overlay locked relative transition-all duration-300">
+                <div
+                  class="unlock-notice absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-card-dark border border-primary text-white px-6 py-4 rounded-xl text-center z-10 w-4/5 hidden shadow-2xl font-medium">
+                  ¡Casi listo! Ve a Configuración APIs e ingresa tu token para desbloquear el catálogo de Banxico.</div>
+                <div class="locked-content transition-all duration-300">
+                  <div class="bg-card-dark rounded-2xl border border-white/5 overflow-hidden">
+                    <div class="p-6 border-b border-white/5">
+                      <div class="mb-5">
+                        <h2 class="font-display font-semibold text-lg text-white m-0">Catálogo: Banxico <span
+                            class="text-sm font-normal text-text-muted ml-2">Indicadores Populares</span></h2>
+                      </div>
+                      <div id="banxicoButtons" class="flex flex-wrap gap-2 mt-4"></div>
+                    </div>
+                    <div class="p-6">
+                      <div class="mb-5">
+                        <h2 class="font-display font-semibold text-lg text-white m-0">Añadir por ID</h2>
+                        <p class="text-text-muted text-sm mt-1 mb-0">Busca IDs en el <a
+                            href="https://www.banxico.org.mx/SieAPIRest/service/v1/doc/catalogoSeries" target="_blank"
+                            class="text-primary hover:underline">catálogo SIE</a>.</p>
+                      </div>
+                      <div class="flex flex-wrap sm:flex-nowrap gap-3 mt-4">
+                        <input id="seriesId" type="text" placeholder="Ej. SF43718"
+                          class="w-full sm:w-40 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-sm font-medium text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all uppercase">
+                        <select id="seriesType"
+                          class="w-full sm:w-24 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-sm font-medium text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none cursor-pointer">
+                          <option value="percent">% (Porcentaje)</option>
+                          <option value="currency">$ (Moneda)</option>
+                          <option value="number"># (Número)</option>
+                        </select>
+                        <button id="addById"
+                          class="px-5 py-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 w-full sm:w-auto">Añadir</button>
+                      </div>
+                      <div id="seriesMsg" class="text-xs mt-2 flex items-center gap-1.5 font-medium min-h-[20px]"></div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div style="display:flex; gap:10px">
-                <input id="inegiToken" type="text" placeholder="Pega tu token aquí">
-                <button id="testInegi" class="btn btn-outline">Probar</button>
+            </div>
+
+            <!-- INEGI Explorer -->
+            <div class="explorer-card transition-all duration-300" data-category="inegi">
+              <div id="inegiOps" class="locked-overlay locked relative transition-all duration-300">
+                <div id="inegiOverlay1"
+                  class="unlock-notice hidden absolute inset-0 bg-background-dark/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center transition-opacity duration-300">
+                  <div class="bg-card-dark p-4 rounded-xl border border-white/10 text-center max-w-sm mx-4 shadow-xl">
+                    <span class="material-symbols-outlined text-3xl text-primary mb-2">lock</span>
+                    <p class="text-sm text-white font-medium m-0">¡Casi listo! Ve a Configuración APIs e ingresa tu
+                      token para desbloquear estadísticas nacionales.</p>
+                  </div>
+                </div>
+                <div class="locked-content transition-all duration-300">
+                  <div class="bg-card-dark rounded-2xl border border-white/5 overflow-hidden">
+                    <div class="p-6 border-b border-white/5">
+                      <div class="mb-5">
+                        <h2 class="font-display font-semibold text-lg text-white m-0">Catálogo: INEGI <span
+                            class="text-sm font-normal text-text-muted ml-2">Sugeridos</span></h2>
+                      </div>
+                      <div id="inegiButtons" class="flex flex-wrap gap-2 mt-4"></div>
+                    </div>
+                    <div class="p-6">
+                      <div class="mb-5">
+                        <h2 class="font-display font-semibold text-lg text-white m-0">Añadir por ID</h2>
+                        <p class="text-text-muted text-sm mt-1 mb-0">Busca en el <a
+                            href="https://www.inegi.org.mx/servicios/api_indicadores.html" target="_blank"
+                            class="text-primary hover:underline">constructor</a> o usa <a href="#" id="openInegiHelp"
+                            class="text-primary font-semibold hover:underline">esta guía rápida</a>.</p>
+                      </div>
+                      <div class="flex flex-wrap sm:flex-nowrap gap-3 mt-4">
+                        <input id="inegiIdInput" type="text" placeholder="Ej. 1002000001"
+                          class="flex-1 sm:flex-none sm:w-48 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-sm font-medium text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+                        <button id="addInegiById"
+                          class="px-5 py-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 w-full sm:w-auto">Añadir</button>
+                      </div>
+                      <div id="inegiMsg" class="text-xs mt-2 flex items-center gap-1.5 font-medium min-h-[20px]"></div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div id="msgInegi" class="status-msg"></div>
             </div>
-            <button id="saveInegi" class="btn btn-primary">Guardar Conexión</button>
-          </div>
 
-          <div id="inegiOps" class="locked-overlay locked">
-            <div class="unlock-notice">Configura tu token para añadir indicadores del INEGI.</div>
-            <div class="card">
-              <h2>Catálogo Sugerido</h2>
-              <p>Indicadores clave del instituto.</p>
-              <div id="inegiButtons" class="chips" style="margin-top:15px"></div>
-            </div>
-            <div class="card">
-              <h2>Añadir por ID</h2>
-              <p>Busca indicadores en el <a href="https://www.inegi.org.mx/servicios/api_indicadores.html"
-                  target="_blank">constructor de consultas</a> o consulta <a href="#" id="openInegiHelp"
-                  style="color: var(--primary); font-weight: 600;">esta guía rápida</a>.</p>
-              <div class="row" style="display:flex; gap:15px; margin-top:15px;">
-                <input id="inegiIdInput" type="text" placeholder="Ej. 1002000001" style="width: 140px;">
-                <button id="addInegiById" class="btn btn-primary">Añadir</button>
+            <!-- Yahoo Finance Explorer -->
+            <div class="explorer-card transition-all duration-300" data-category="yf">
+              <div id="avOps">
+                <div class="bg-card-dark rounded-2xl border border-white/5 overflow-hidden">
+                  <div class="p-6 border-b border-white/5">
+                    <div class="mb-5">
+                      <h2 class="font-display font-semibold text-lg text-white m-0">Catálogo: Mercados Globales <span
+                          class="text-sm font-normal text-text-muted ml-2">Sugeridos</span></h2>
+                    </div>
+                    <div id="stocksButtons" class="flex flex-wrap gap-2 mt-4"></div>
+                    <div id="avButtons" class="flex flex-wrap gap-2 mt-2"></div>
+                  </div>
+                  <div class="p-6">
+                    <div class="mb-5">
+                      <h2 class="font-display font-semibold text-lg text-white m-0">Añadir Ticker Manual (Vía Yahoo
+                        Finance)</h2>
+                      <p class="mt-2 text-sm text-text-muted hidden" id="stockHelpText">
+                        <strong>¿No sabes cuál es el ticker?</strong> Ve a <a href="https://finance.yahoo.com/"
+                          target="_blank" class="text-primary font-semibold hover:underline">Yahoo Finance</a>, busca el
+                        nombre de la empresa, índice o criptomoneda en su barra de búsqueda. El código que aparece entre
+                        paréntesis es el Ticker (Ejemplo: Para América Móvil aparece <strong>AMXL.MX</strong>).
+                      </p>
+                    </div>
+                    <div class="flex flex-wrap sm:flex-nowrap gap-3 mb-2">
+                      <input id="stockInput" type="text" placeholder="Ej. TSLA, NVDA"
+                        class="flex-1 sm:flex-none sm:w-48 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-sm font-medium text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all uppercase">
+                      <button id="addStockBtn"
+                        class="px-5 py-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 w-full sm:w-auto">Añadir</button>
+                      <button id="toggleStockHelp"
+                        class="px-3 py-3 rounded-lg font-bold text-sm text-text-muted transition-all flex items-center justify-center hover:bg-white/5 border border-transparent"
+                        title="Ayuda sobre Tickers">?</button>
+                    </div>
+                    <div id="stockMsg" class="text-xs mt-2 flex items-center gap-1.5 font-medium min-h-[20px]"></div>
+                  </div>
+                </div>
               </div>
-              <div id="inegiMsg" class="status-msg"></div>
             </div>
           </div>
-        </div>
 
-      </section>
+        </section>
 
-      <!-- Persistent Selection Side Panel -->
-      <aside class="selection-panel">
-        <div class="card" style="height: 100%; display: flex; flex-direction: column;">
-          <div class="card-header">
-            <h2>Mi Tablero</h2>
-            <p>Orden de visualización.</p>
+        <!-- Persistent Selection Side Panel -->
+        <aside class="w-80 shrink-0 sticky top-28" style="height: calc(100vh - 8rem);">
+          <div class="bg-card-dark border border-white/5 rounded-2xl h-full flex flex-col overflow-hidden">
+            <div class="p-5 border-b border-white/5 shrink-0">
+              <h2 class="font-display font-semibold text-lg text-white m-0">Mi Tablero</h2>
+              <p class="text-text-muted text-xs mt-1 mb-0">Tu tablero se guarda automáticamente y está listo para usar
+                en tu extensión.</p>
+            </div>
+            <div id="selected" class="flex-1 p-4 overflow-y-auto space-y-2 no-scrollbar relative min-h-[200px]">
+              <!-- Empty state injects here -->
+              <div id="selectedEmptyState"
+                class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center opacity-70">
+                <span class="material-symbols-outlined text-4xl text-text-muted mb-3">dashboard_customize</span>
+                <h3 class="text-sm font-semibold text-white m-0 tracking-wide">Tu tablero está vacío</h3>
+                <p class="text-xs text-text-muted mt-2">Añade indicadores clave desde los paneles de la izquierda para
+                  empezar a armar tu dashboard.</p>
+              </div>
+            </div>
           </div>
-          <div id="selected" class="selected-list" style="flex-grow: 1; overflow-y: auto;">
-            <!-- Rendered by JS -->
-          </div>
-          <div class="section-divider"></div>
-          <div class="note" style="font-size: 11px; text-align: center;">Los cambios se guardan automáticamente.</div>
-        </div>
-      </aside>
-    </div>
-  </main>
+        </aside>
+      </div>
+    </main>
+  </div>
 
-  <div id="inegiHelpModal" class="modal-overlay">
-    <div class="modal">
-      <button id="closeInegiHelp" class="close-modal">×</button>
-      <h2 style="margin-top:0;">Cómo encontrar IDs del INEGI</h2>
-      <p style="color:var(--text-muted); margin-bottom: 20px;">Sigue estos pasos para encontrar el ID correcto para
-        cualquier indicador.</p>
+  <div id="inegiHelpModal"
+    class="fixed inset-0 bg-background-dark/80 backdrop-blur-sm z-[1000] hidden items-center justify-center p-4">
+    <div
+      class="glass-card bg-card-dark p-8 rounded-2xl border border-white/5 w-full max-w-[550px] shadow-2xl relative transition-all">
+      <button id="closeInegiHelp"
+        class="absolute top-4 right-4 text-text-muted hover:text-white bg-white/5 hover:bg-white/10 rounded-full w-8 h-8 flex items-center justify-center transition-colors text-lg">×</button>
+      <h2 class="font-display font-semibold text-lg text-white m-0">Cómo encontrar IDs del INEGI</h2>
+      <p class="text-text-muted text-sm mt-1 mb-5">Sigue estos pasos para encontrar el ID correcto para cualquier
+        indicador.</p>
 
-      <img src="assets/inegi_guide.png" alt="Guía visual INEGI"
-        style="width:100%; border-radius:8px; border:1px solid var(--border); margin-bottom:20px;">
+      <img src="assets/inegi_guide.png" alt="Guía visual INEGI" class="w-full rounded-lg border border-white/5 mb-6">
 
-      <ol style="line-height: 1.6; padding-left: 20px; margin-bottom: 24px;">
+      <ol class="list-decimal pl-4 mb-6 space-y-2 text-sm text-text-muted marker:text-text-muted">
         <li>Entra a la <a href="https://www.inegi.org.mx/servicios/api_indicadores.html" target="_blank"
-            style="font-weight:600">página de la API de INEGI</a>.</li>
-        <li>Ve a la pestaña <strong>"Constructor de Consultas"</strong> (como se ve en la imagen).</li>
+            class="font-semibold text-primary hover:text-primary-alt transition-colors">página de la API de INEGI</a>.
+        </li>
+        <li>Ve a la pestaña <strong class="text-white font-medium">"Constructor de Consultas"</strong> (como se ve en
+          la
+          imagen).</li>
         <li>Navega por el árbol de temas (ej. <em>Precios e Inflación</em>) y selecciona tu indicador.</li>
-        <li>El ID es el número que aparece en la columna <strong>"Clave"</strong> (ej. <code>628194</code>).</li>
+        <li>El ID es el número que aparece en la columna <strong class="text-white font-medium">"Clave"</strong> (ej.
+          <code class="bg-white/10 px-1.5 py-0.5 rounded text-primary">628194</code>).
+        </li>
       </ol>
 
-      <div style="background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid var(--border);">
-        <h3 style="margin:0 0 8px; font-size: 0.9rem;">⚠️ Importante</h3>
-        <ul style="margin:0; padding-left: 20px; font-size: 0.9rem; color: var(--text-muted);">
-          <li>Si buscas <strong>variaciones porcentuales</strong> (ej. PIB), asegúrate de que el indicador diga
-            "Variación anual" o "trimestral" en su nombre, no solo el valor absoluto en millones.</li>
-          <li>Para comparaciones mes a mes, busca series <strong>Desestacionalizadas</strong>.</li>
+      <div class="bg-background-dark/50 p-4 rounded-lg border border-white/5">
+        <h3 class="m-0 mb-2 text-sm font-semibold flex items-center gap-2"><span
+            class="text-warning text-base">⚠️</span> <span class="text-white">Importante</span></h3>
+        <ul class="m-0 pl-4 space-y-1 text-sm text-text-muted list-disc marker:text-text-muted/50">
+          <li>Si buscas <strong class="text-white font-medium">variaciones porcentuales</strong> (ej. PIB), asegúrate
+            de
+            que el indicador diga "Variación anual" o "trimestral" en su nombre, no solo el valor absoluto en
+            millones.
+          </li>
+          <li>Para comparaciones mes a mes, busca series <strong
+              class="text-white font-medium">Desestacionalizadas</strong>.</li>
         </ul>
       </div>
     </div>

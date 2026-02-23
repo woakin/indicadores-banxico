@@ -16,7 +16,10 @@
     "https://www.banxico.org.mx/*",
     "https://anterior.banxico.org.mx/*",
     "https://www.alphavantage.co/*",
-    "https://www.inegi.org.mx/*"
+    "https://www.inegi.org.mx/*",
+    "https://query1.finance.yahoo.com/*",
+    "https://www.myfxbook.com/*",
+    "https://api.binance.com/*"
   ],
   "background": {
     "service_worker": "background.js",
