@@ -40,6 +40,21 @@ async function copyToClipboard(val, date) {
   }
 }
 
+function getYahooFinanceUrl(id, name) {
+  let yfSymbol = null;
+  if (id) {
+    if (id.startsWith("YF_")) {
+      yfSymbol = id.replace("YF_", "");
+    }
+  } else {
+    // Fallback for default items without ID
+    if (name === "S&P 500") yfSymbol = "^GSPC";
+    else if (name === "USD/MXN") yfSymbol = "MXN=X";
+  }
+
+  return yfSymbol ? `https://finance.yahoo.com/quote/${yfSymbol}` : null;
+}
+
 // --- Data Formatting ---
 // (Moved to utils.js)
 
@@ -84,7 +99,17 @@ function render(rows, containerOrWarn = false) {
 
   for (const r of rows) {
     const card = document.createElement("div");
-    card.className = "indicator-card";
+    const yfUrl = getYahooFinanceUrl(r.id, r.name);
+
+    if (yfUrl) {
+      card.className = "indicator-card group hover:border-primary/50 cursor-pointer transition-colors";
+      card.title = "Haz clic para ver más en Yahoo Finance";
+      card.addEventListener("click", () => {
+        window.open(yfUrl, "_blank", "noopener,noreferrer");
+      });
+    } else {
+      card.className = "indicator-card";
+    }
 
     // Left side: Name and Date
     const info = document.createElement("div");
@@ -94,7 +119,9 @@ function render(rows, containerOrWarn = false) {
     titleContainer.className = "flex items-start justify-between w-full mb-2";
 
     const title = document.createElement("div");
-    title.className = "text-[10px] leading-tight font-bold text-text-muted uppercase tracking-wide pr-2";
+    title.className = yfUrl
+      ? "text-[10px] leading-tight font-bold text-text-muted transition-colors group-hover:text-primary uppercase tracking-wide pr-2"
+      : "text-[10px] leading-tight font-bold text-text-muted uppercase tracking-wide pr-2";
     title.textContent = r.name;
     if (r.config?.description) {
       title.title = r.config.description;
@@ -160,6 +187,7 @@ function render(rows, containerOrWarn = false) {
     copyBtn.title = "Copiar valor";
     copyBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
+      e.preventDefault();
       await copyToClipboard(r.value, r.date);
 
       // Visual feedback
@@ -180,6 +208,7 @@ function render(rows, containerOrWarn = false) {
     if (r.date !== "Sin datos" && r.date !== "—") {
       graphBtn.addEventListener("click", (e) => {
         e.stopPropagation();
+        e.preventDefault();
         showHistoricalView(r.id, r.name, r.config);
       });
     } else {
@@ -877,6 +906,7 @@ function renderTicker(favorites) {
   } else {
     tickerItems = favorites.map(f => {
       return {
+        id: f.id,
         name: f.name,
         val: f.value,
         variation: f.variation || f.config?.variation // Need to ensure background provides it
@@ -890,7 +920,9 @@ function renderTicker(favorites) {
 
       tickerItems.forEach(item => {
         let content = `${item.name} ${item.val}`;
+        const yfUrl = getYahooFinanceUrl(item.id, item.name);
         let className = "ticker-item";
+        if (yfUrl) className += " group cursor-pointer";
 
         if (item.variation !== undefined && item.variation !== null && !isNaN(item.variation)) {
           const change = parseFloat(item.variation);
@@ -899,11 +931,19 @@ function renderTicker(favorites) {
           className += change > 0 ? ' up' : change < 0 ? ' down' : '';
         }
 
-        const el = document.createElement("div");
+        const el = yfUrl ? document.createElement("a") : document.createElement("div");
         el.className = className;
 
+        if (yfUrl) {
+          el.href = yfUrl;
+          el.target = "_blank";
+          el.rel = "noopener noreferrer";
+        }
+
         const titleSpan = document.createElement("span");
-        titleSpan.className = "text";
+        titleSpan.className = yfUrl
+          ? "text transition-colors group-hover:text-primary"
+          : "text";
         titleSpan.textContent = item.name;
 
         const valueSpan = document.createElement("span");
