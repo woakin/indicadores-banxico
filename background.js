@@ -196,16 +196,16 @@ async function fetchBanxicoSeries(ids, token) {
             const results = json.bmx.series.map(formatItem);
 
             // If any series has no observations (val === "—"), retry that specific one with last/20
-            for (let i = 0; i < results.length; i++) {
-                if (results[i].val === "—") {
+            await Promise.all(results.map(async (item, i) => {
+                if (item.val === "—") {
                     try {
-                        const deepJson = await fetchLastN(results[i].id, token, 20);
+                        const deepJson = await fetchLastN(item.id, token, 20);
                         if (deepJson.bmx?.series?.[0]) {
                             results[i] = formatItem(deepJson.bmx.series[0]);
                         }
-                    } catch (e) { console.warn(`[Background] Deep fetch failed for ${results[i].id}`); }
+                    } catch (e) { console.warn(`[Background] Deep fetch failed for ${item.id}`); }
                 }
-            }
+            }));
             return results;
         }
     } catch (err) {
@@ -213,22 +213,22 @@ async function fetchBanxicoSeries(ids, token) {
     }
 
     // 2. Fallback: Individual fetch (resilient to toxic IDs)
-    const finalResults = [];
-    for (const id of ids) {
+    const promises = ids.map(async (id) => {
         try {
             // Use last/20 directly for individual retries to be sure
             const json = await fetchLastN(id, token, 20);
             if (json.bmx?.series?.[0]) {
-                finalResults.push(formatItem(json.bmx.series[0]));
+                return formatItem(json.bmx.series[0]);
             } else {
-                finalResults.push({ id, error: "Serie sin datos" });
+                return { id, error: "Serie sin datos" };
             }
         } catch (indErr) {
             console.error(`[Background] Permanent failure for ${id}:`, indErr.message);
-            finalResults.push({ id, error: indErr.message });
+            return { id, error: indErr.message };
         }
-    }
-    return finalResults;
+    });
+
+    return Promise.all(promises);
 }
 
 async function fetchHistoricalData(seriesId, token, startDate, endDate) {
