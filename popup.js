@@ -1,5 +1,5 @@
 import { DEFAULT_SERIES, ANALYSIS_SERIES, YF_CATALOG } from './constants.js';
-import { fmtValue, fmtDate, latestValidObservation } from './utils.js';
+import { fmtValue, fmtDate, latestValidObservation, escapeHTML } from './utils.js';
 
 const $ = s => document.querySelector(s);
 
@@ -387,7 +387,7 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
 
     if (cVal > eVal) {
       warningEl.style.display = "block";
-      warningEl.innerHTML = `⚠️ <strong>Dato actual (${cVal.toFixed(2)}%)</strong> por encima del consenso de cierre (${eVal.toFixed(2)}%)`;
+      warningEl.innerHTML = `⚠️ <strong>Dato actual (${escapeHTML(cVal.toFixed(2))}%)</strong> por encima del consenso de cierre (${escapeHTML(eVal.toFixed(2))}%)`;
     } else {
       warningEl.style.display = "none";
     }
@@ -510,7 +510,7 @@ function updateRealRateMonitor(targetRateSerie, inflationSerie, cetesSerie, tiie
     const spreadEl = $("#tiieSpread");
     if (spreadEl) {
       const warning = spread > 0.50 ? ' <span title="Spread inusualmente alto (>0.50%)" style="cursor:help">⚠️</span>' : '';
-      spreadEl.innerHTML = `TIIE vs Objetivo: ${spread > 0 ? "+" : ""}${spread.toFixed(2)}%${warning}`;
+      spreadEl.innerHTML = `TIIE vs Objetivo: ${escapeHTML(spread > 0 ? "+" : "")}${escapeHTML(spread.toFixed(2))}%${warning}`;
     }
   }
 
@@ -672,7 +672,7 @@ async function showHistoricalView(seriesId, title, config) {
       const tbody = document.createElement("tbody");
       for (let i = resp.data.length - 1; i >= 0; i--) {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${fmtDate(resp.data[i].fecha, config.periodicity)}</td><td style="text-align:right">${fmtValue(config, resp.data[i].dato)}</td>`;
+        tr.innerHTML = `<td>${escapeHTML(fmtDate(resp.data[i].fecha, config.periodicity))}</td><td style="text-align:right">${escapeHTML(fmtValue(config, resp.data[i].dato))}</td>`;
         tbody.appendChild(tr);
       }
       table.appendChild(tbody);
@@ -1015,12 +1015,12 @@ async function loadEconomicCalendar() {
 
       item.innerHTML = `
           <div class="calendar-item-header">
-            <span class="calendar-item-title">${ev.title} <strong>(${ev.country})</strong></span>
-            <span class="calendar-item-time" style="text-transform: capitalize">${displayDate} <br/> ${displayTime}</span>
+            <span class="calendar-item-title">${escapeHTML(ev.title)} <strong>(${escapeHTML(ev.country)})</strong></span>
+            <span class="calendar-item-time" style="text-transform: capitalize">${escapeHTML(displayDate)} <br/> ${escapeHTML(displayTime)}</span>
           </div>
           <div class="calendar-item-meta">
-             <span class="${impactClass}">${impactLabel}</span>
-             <span>Prev: ${ev.previous || '--'} | Proy: ${ev.forecast || '--'}</span>
+             <span class="${escapeHTML(impactClass)}">${escapeHTML(impactLabel)}</span>
+             <span>Prev: ${escapeHTML(ev.previous || '--')} | Proy: ${escapeHTML(ev.forecast || '--')}</span>
           </div>
         `;
       container.appendChild(item);
