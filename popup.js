@@ -250,7 +250,6 @@ async function refresh(force = false) {
     // Check Age for Silent Update (1 hour = 3600000ms)
     const isStale = lastUpdated && (Date.now() - lastUpdated > 3600000);
     if (isStale && !force) {
-      console.log("[Popup] Cache is stale, triggering silent refresh...");
       chrome.runtime.sendMessage({ type: "REFRESH_DATA" });
     }
   } else if (!sieToken && !inegiToken) {
