@@ -28,6 +28,8 @@ export function fmtValue(cfg, datoStr) {
   // Replace comma with dot for decimal handling, then clean non-numeric chars
   // Note: Handle if datoStr is already a number
   const cleanStr = String(datoStr).replace(",", ".").replace(/[^0-9.-]/g, "");
+  if (cleanStr === "" || cleanStr === "-") return datoStr;
+
   const x = Number(cleanStr);
   if (isNaN(x)) return datoStr;
 
