@@ -71,52 +71,115 @@ export const DEFAULT_SERIES = [
     description: "Base monetaria (dinero en circulación + reservas bancarias)"
   }
 ];
+export const EXPECTATIONS_SERIES = [
+  {
+    category: "expectation",
+    title: "Tasa Banxico (Trimestral)",
+    idT: "SR14482", 
+    idT1: "SR14489", 
+    type: "percent",
+    decimals: 2,
+    periodicity: "Trimestral",
+    description: "Expectativa de Tasa de Fondeo Interbancario (Media) - Trimestre actual (t) vs Siguiente (t+1)"
+  },
+  {
+    category: "expectation",
+    title: "Inflación General (Anual)",
+    idT: "SR14138", 
+    idT1: "SR14145", 
+    type: "percent",
+    decimals: 2,
+    periodicity: "Anual",
+    description: "Expectativa de Inflación General (Media) - Año en curso (t) vs Año siguiente (t+1)"
+  },
+  {
+    category: "expectation",
+    title: "PIB (Trimestral)",
+    idT: "SR14658", 
+    idT1: "SR14665", 
+    type: "percent",
+    decimals: 2,
+    periodicity: "Trimestral",
+    description: "Expectativa de crecimiento del PIB (Media) - Trimestre actual (t) vs Siguiente (t+1)"
+  }
+];
 
-export const ANALYSIS_SERIES = [
-  {
-    id: "SR14447",
-    category: "expectation",
-    title: "Eco: PIB (Expectativa 2025 %)",
-    type: "percent",
-    decimals: 2,
-    periodicity: "Mensual",
-    description: "Expectativa de crecimiento del PIB (Cierre de año 2025) - Media Encuesta Banxico"
-  },
-  {
-    id: "SR14138",
-    category: "expectation",
-    title: "Eco: Inflación (Expectativa 2025 %)",
-    type: "percent",
-    decimals: 2,
-    periodicity: "Mensual",
-    description: "Expectativa de Inflación General (Cierre de año 2025) - Media Encuesta Banxico"
-  },
+export const CORE_HEALTH_SERIES = [
   {
     id: "SR17692",
     category: "macro",
-    title: "Macro: IGAE (Índice)",
+    title: "Crecimiento: IGAE",
     type: "number",
     decimals: 2,
     periodicity: "Mensual",
     description: "Indicador Global de Actividad Económica (Base 2018)"
   },
   {
-    id: "SE27803",
+    id: "INEGI_444603",
     category: "macro",
-    title: "Macro: Ingresos por Remesas (MDD)",
-    type: "number",
+    title: "Empleo: Desocupación",
+    type: "percent",
     decimals: 2,
     periodicity: "Mensual",
-    description: "Monto mensual de ingresos por remesas en millones de dólares"
+    description: "Tasa de desocupación laboral a nivel nacional"
   },
   {
     id: "SP74665",
     category: "macro",
-    title: "Macro: Inflación General (%)",
+    title: "Precios: Inflación Gral",
     type: "percent",
     decimals: 2,
     periodicity: "Mensual",
     description: "Variación mensual del Índice Nacional de Precios al Consumidor"
+  },
+  {
+    id: "SP74662",
+    category: "macro",
+    title: "Precios: Infl. Subyacente",
+    type: "percent",
+    decimals: 2,
+    periodicity: "Mensual",
+    description: "Inflación Subyacente Anual"
+  }
+];
+
+export const EXTERNAL_VULN_SERIES = [
+  {
+    id: "SF43718",
+    category: "macro",
+    title: "USD/MXN (FIX)",
+    type: "number",
+    decimals: 4,
+    periodicity: "Diaria",
+    description: "Tipo de Cambio FIX"
+  },
+  {
+    id: "YF_CL=F",
+    category: "macro",
+    title: "Petróleo WTI",
+    type: "currency",
+    currency: "USD",
+    decimals: 2,
+    periodicity: "Diaria",
+    description: "Precio del Barril de Petróleo WTI"
+  },
+  {
+    id: "SE27803",
+    category: "macro",
+    title: "Remesas (MDD)",
+    type: "number",
+    decimals: 2,
+    periodicity: "Mensual",
+    description: "Monto mensual de ingresos por remesas"
+  },
+  {
+    id: "SF43707",
+    category: "macro",
+    title: "Reservas Int. (MDD)",
+    type: "number",
+    decimals: 0,
+    periodicity: "Semanal",
+    description: "Reservas Internacionales de Banco de México"
   }
 ];
 
@@ -165,15 +228,17 @@ export const SUGGESTED_TICKERS = [
 
 // Yield Curve Series (CETES & Bonos M)
 export const YIELD_CURVE_SERIES = [
-  { id: "SF43783", label: "1M", term: 1, type: "CETES" },
-  { id: "SF43784", label: "3M", term: 3, type: "CETES" },
-  { id: "SF43785", label: "6M", term: 6, type: "CETES" },
-  { id: "SF43786", label: "1A", term: 12, type: "CETES" },
-  { id: "SF43936", label: "3A", term: 36, type: "Bono M" },
-  { id: "SF43939", label: "5A", term: 60, type: "Bono M" },
-  { id: "SF43943", label: "10A", term: 120, type: "Bono M" },
-  { id: "SF43945", label: "20A", term: 240, type: "Bono M" },
-  { id: "SF43947", label: "30A", term: 360, type: "Bono M" }
+  { id: "SF43936", label: "1M", term: 1, type: "CETES" },
+  { id: "SF43939", label: "3M", term: 3, type: "CETES" },
+  { id: "SF43942", label: "6M", term: 6, type: "CETES" },
+  { id: "SF43945", label: "1A", term: 12, type: "CETES" },
+  { id: "SF349785", label: "2A", term: 24, type: "CETES" },
+  { id: "SF43883", label: "3A", term: 36, type: "Bono M" },
+  { id: "SF43886", label: "5A", term: 60, type: "Bono M" },
+  { id: "SF44946", label: "7A", term: 84, type: "Bono M" },
+  { id: "SF44071", label: "10A", term: 120, type: "Bono M" },
+  { id: "SF45384", label: "20A", term: 240, type: "Bono M" },
+  { id: "SF60696", label: "30A", term: 360, type: "Bono M" }
 ];
 
 // Banxico Suggested Catalog (For easy addition)

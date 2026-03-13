@@ -1,4 +1,4 @@
-import { DEFAULT_SERIES, ANALYSIS_SERIES, YF_CATALOG } from './constants.js';
+import { DEFAULT_SERIES, CORE_HEALTH_SERIES, EXTERNAL_VULN_SERIES, YF_CATALOG, YIELD_CURVE_SERIES, EXPECTATIONS_SERIES } from './constants.js';
 import { fmtValue, fmtDate, latestValidObservation } from './utils.js';
 
 const $ = s => document.querySelector(s);
@@ -74,14 +74,13 @@ function render(rows, containerOrWarn = false) {
   if (warningEl) warningEl.style.display = warn ? "block" : "none";
 
   if (!container) return;
-  container.innerHTML = "";
 
   if (rows.length === 0) {
     if (warn) {
       container.innerHTML = `
         <div class="empty-state">
            <div class="empty-state-icon">👋</div>
-           <h4>Bienvenido a Indicadores HUB</h4>
+           <h4>Bienvenido a Indicadores MX</h4>
            <p>Para comenzar, necesitas configurar tus conexiones a las APIs oficiales. Son gratuitas y seguras.</p>
            <button class="btn" onclick="chrome.tabs.create({ url: 'onboarding.html'})">Configurar ahora</button>
         </div>`;
@@ -91,14 +90,65 @@ function render(rows, containerOrWarn = false) {
     return;
   }
 
-  const parseDmx = (d) => {
-    if (!d || typeof d !== 'string') return new Date(0);
-    const p = d.split("/");
-    return p.length === 3 ? new Date(p[2], p[1] - 1, p[0]) : new Date(p[1], p[0] - 1, 1);
-  };
+  const seenIds = new Set();
 
   for (const r of rows) {
-    const card = document.createElement("div");
+    const safeId = (r.id || r.name).replace(/[^a-zA-Z0-9_-]/g, "");
+    const cardId = `card-${container.id}-${safeId}`;
+    seenIds.add(cardId);
+
+    let card = document.getElementById(cardId);
+    
+    if (card) {
+      // --- Update Existing Card ---
+      const valText = card.querySelector(".val-text");
+      const dateText = card.querySelector(".date-text");
+      const variationRow = card.querySelector(".variation-row");
+      const graphBtn = card.querySelector(".graph-btn");
+      const errIcon = card.querySelector(".err-icon");
+
+      if (valText) valText.textContent = r.value;
+      if (dateText) dateText.textContent = r.date;
+      
+      if (variationRow) {
+        if (r.variationHtml) {
+          variationRow.innerHTML = r.variationHtml;
+        } else {
+          variationRow.innerHTML = "<div></div>";
+        }
+      }
+
+      if (graphBtn) {
+        if (r.date !== "Sin datos" && r.date !== "—") {
+          graphBtn.style.opacity = "1";
+          graphBtn.style.cursor = "pointer";
+        } else {
+          graphBtn.style.opacity = "0.3";
+          graphBtn.style.cursor = "not-allowed";
+        }
+      }
+
+      if (r.error) {
+        if (!errIcon) {
+          const newErr = document.createElement("span");
+          newErr.textContent = "⚠️";
+          newErr.className = "err-icon text-danger ml-1 text-[10px] cursor-help absolute top-0 left-1/2 -translate-x-1/2";
+          newErr.title = `Error: ${r.error}`;
+          card.querySelector("div").appendChild(newErr);
+        } else {
+          errIcon.title = `Error: ${r.error}`;
+        }
+      } else if (errIcon) {
+        errIcon.remove();
+      }
+
+      container.appendChild(card); // Re-append places it at the end to match array order
+      continue;
+    }
+
+    // --- Create New Card ---
+    card = document.createElement("div");
+    card.id = cardId;
     const yfUrl = getYahooFinanceUrl(r.id, r.name);
 
     if (yfUrl) {
@@ -111,22 +161,23 @@ function render(rows, containerOrWarn = false) {
       card.className = "indicator-card";
     }
 
-    // Left side: Name and Date
+    // NEW CARD STRUCTURE
     const info = document.createElement("div");
-    info.className = "card-info";
+    info.className = "flex flex-col h-full relative"; 
 
-    const titleContainer = document.createElement("div");
-    titleContainer.className = "flex items-start justify-between w-full mb-2";
+    // Top row: Title and Badge
+    const topRow = document.createElement("div");
+    topRow.className = "flex items-start justify-between w-full mb-2 gap-2";
 
     const title = document.createElement("div");
     title.className = yfUrl
-      ? "text-[10px] leading-tight font-bold text-text-muted transition-colors group-hover:text-primary uppercase tracking-wide pr-2"
-      : "text-[10px] leading-tight font-bold text-text-muted uppercase tracking-wide pr-2";
+      ? "text-[10px] leading-tight font-bold text-text-muted transition-colors group-hover:text-primary uppercase tracking-wider"
+      : "text-[10px] leading-tight font-bold text-text-muted uppercase tracking-wider";
     title.textContent = r.name;
     if (r.config?.description) {
       title.title = r.config.description;
     }
-    titleContainer.appendChild(title);
+    topRow.appendChild(title);
 
     if (r.id) {
       const isYF = r.id.startsWith("YF_");
@@ -138,72 +189,76 @@ function render(rows, containerOrWarn = false) {
       if (isInegi) { badgeLabel = "INEGI"; badgeClass = "source-yf"; }
 
       const badge = document.createElement("span");
-      badge.className = `badge-source ${badgeClass}`;
+      badge.className = `badge-source ${badgeClass} shrink-0`;
       badge.textContent = badgeLabel;
-      titleContainer.appendChild(badge);
+      topRow.appendChild(badge);
     }
-
-    info.appendChild(titleContainer);
+    info.appendChild(topRow);
 
     // Error Indicator (if any)
     if (r.error) {
       const errIcon = document.createElement("span");
       errIcon.textContent = "⚠️";
-      errIcon.className = "text-danger ml-1 text-xs cursor-help";
+      errIcon.className = "err-icon text-danger ml-1 text-[10px] cursor-help absolute top-0 left-1/2 -translate-x-1/2";
       errIcon.title = `Error: ${r.error}`;
       info.appendChild(errIcon);
     }
 
-    card.appendChild(info);
+    // Value & Date
+    const valueRow = document.createElement("div");
+    valueRow.className = "flex flex-col mb-3";
 
-    // Value on its own row
-    const value = document.createElement("div");
-    // mb-2 separates it cleanly from the bottom row. tabular-nums ensures digits align. break-words handles super long numbers.
-    value.className = "text-[22px] font-bold text-white leading-tight tracking-tight my-2 tabular-nums break-words";
-    value.textContent = r.value;
-    card.appendChild(value);
+    const valText = document.createElement("div");
+    valText.className = "val-text text-[28px] font-bold text-white leading-none tracking-tight tabular-nums break-words";
+    valText.textContent = r.value;
+    valueRow.appendChild(valText);
 
-    // Bottom container for Date and Actions
+    const date = document.createElement("div");
+    date.className = "date-text text-[10px] text-text-muted font-medium tracking-wide mt-1.5";
+    date.textContent = r.date;
+    valueRow.appendChild(date);
+    
+    info.appendChild(valueRow);
+
+    // Bottom Row: Variation & Actions
     const bottomRow = document.createElement("div");
     bottomRow.className = "flex items-center justify-between w-full mt-auto pt-1";
 
-    // Date
-    const date = document.createElement("div");
-    date.className = "text-[10px] text-text-muted font-medium tracking-wide";
-    date.textContent = r.date;
-    bottomRow.appendChild(date);
+    const variationSpan = document.createElement("span");
+    variationSpan.className = "variation-row";
+    if (r.variationHtml) {
+        variationSpan.innerHTML = r.variationHtml;
+    } else {
+        variationSpan.innerHTML = "<div></div>";
+    }
+    bottomRow.appendChild(variationSpan);
 
     // Actions
     const actions = document.createElement("div");
-    actions.className = "flex items-center gap-1.5 shrink-0";
+    actions.className = "flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity shrink-0";
 
-    // Copy Button
+    const btnClasses = "flex items-center justify-center w-[26px] h-[26px] rounded bg-primary/10 text-primary border border-transparent hover:bg-primary/20 hover:border-primary/30 transition-all active:scale-95";
+    const successCopyClasses = "flex items-center justify-center w-[26px] h-[26px] rounded bg-success/20 text-success border border-success/30 transition-all";
+
     const copyBtn = document.createElement("button");
-    const originalCopyClasses = "flex items-center justify-center w-8 h-8 rounded-lg bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors active:scale-95";
-    const successCopyClasses = "flex items-center justify-center w-8 h-8 rounded-lg bg-success/20 text-success border border-success/50 transition-colors";
-
-    copyBtn.className = originalCopyClasses;
-    copyBtn.innerHTML = "<span class='material-symbols-outlined text-[17px]'>content_copy</span>";
+    copyBtn.className = btnClasses;
+    copyBtn.innerHTML = "<span class='material-symbols-outlined text-[15px]'>content_copy</span>";
     copyBtn.title = "Copiar valor";
     copyBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
       e.preventDefault();
       await copyToClipboard(r.value, r.date);
-
-      // Visual feedback
       copyBtn.className = successCopyClasses;
-      copyBtn.innerHTML = "<span class='material-symbols-outlined text-[17px]'>check</span>";
-
+      copyBtn.innerHTML = "<span class='material-symbols-outlined text-[15px]'>check</span>";
       setTimeout(() => {
-        copyBtn.className = originalCopyClasses;
-        copyBtn.innerHTML = "<span class='material-symbols-outlined text-[17px]'>content_copy</span>";
+        copyBtn.className = btnClasses;
+        copyBtn.innerHTML = "<span class='material-symbols-outlined text-[15px]'>content_copy</span>";
       }, 2000);
     });
 
-    // Chart Button
     const graphBtn = document.createElement("button");
-    graphBtn.className = "flex items-center justify-center w-8 h-8 rounded-lg bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors active:scale-95";
-    graphBtn.innerHTML = "<span class='material-symbols-outlined text-[17px]'>show_chart</span>";
+    graphBtn.className = `graph-btn ${btnClasses}`;
+    graphBtn.innerHTML = "<span class='material-symbols-outlined text-[15px]'>show_chart</span>";
     graphBtn.title = "Analizar tendencias";
     if (r.date !== "Sin datos" && r.date !== "—") {
       graphBtn.addEventListener("click", (e) => {
@@ -220,10 +275,19 @@ function render(rows, containerOrWarn = false) {
     actions.appendChild(graphBtn);
 
     bottomRow.appendChild(actions);
-    card.appendChild(bottomRow);
+    
+    info.appendChild(bottomRow);
+    card.appendChild(info);
 
     container.appendChild(card);
   }
+
+  // Remove cards that no longer exist
+  Array.from(container.children).forEach(child => {
+    if (child.id && child.id.startsWith(`card-${container.id}-`) && !seenIds.has(child.id)) {
+      child.remove();
+    }
+  });
 }
 
 async function refresh(force = false) {
@@ -240,7 +304,7 @@ async function refresh(force = false) {
 
   // 2. Immediate Render from Cache (if available)
   if (cachedSeriesData && cachedSeriesData.length > 0) {
-    console.log("[Popup] Rendering from cache...");
+
     renderData(cachedSeriesData, sieSeries, lastUpdated);
 
     // Toggle warning if sieToken is missing
@@ -259,13 +323,16 @@ async function refresh(force = false) {
     return;
   } else {
     // No data at all, but we have some token, force a visible refresh
-    console.log("[Popup] No cached data, forcing initial refresh...");
+
     chrome.runtime.sendMessage({ type: "REFRESH_DATA" });
     if (!force) return refresh(true);
   }
 
   // Mandatory series check for old formats or missing critical data
-  const mandatory = ["SP68257", "SF61745", "SP74665", "SP30579", "SR14447", "SR14138", "SR17692", "SE27803", "SF43783"];
+  const mandatory = [
+    "SP68257", "SF61745", "SP74665", "SP30579", "SR17692", "SE27803", "SF43783",
+    ...EXPECTATIONS_SERIES.flatMap(s => [s.idT, s.idT1])
+  ];
   const byId = new Map(cachedSeriesData?.map(s => [s.id, s]) || []);
   const hasAllMandatory = mandatory.every(id => byId.has(id));
   const isOldFormat = cachedSeriesData?.some(s => s.idSerie && !s.id);
@@ -278,7 +345,7 @@ async function refresh(force = false) {
 
   // If we are in force mode, we already triggered REFRESH_DATA or were called with it
   if (force) {
-    console.log("[Popup] Force mode: ensuring background is working...");
+
     chrome.runtime.sendMessage({ type: "REFRESH_DATA" });
   }
 
@@ -325,7 +392,7 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
 
   // UDI Calculator dependencies
   const udiSerie = byId.get('SP68257');
-  if (udiSerie && udiSerie.val) {
+  if (udiSerie && typeof udiSerie.val === 'string' && udiSerie.val !== "—") {
     currentUdiValue = Number(udiSerie.val.replace(",", "."));
     currentUdiDate = fmtDate(udiSerie.date, "diaria");
     updateCalculator();
@@ -337,7 +404,7 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
   const cetesSerie = byId.get('SF60633');
   const tiieSerie = byId.get('SF43783');
 
-  if (targetRateSerie && targetRateSerie.val && inflationSerie && inflationSerie.val) {
+  if (targetRateSerie && typeof targetRateSerie.val === 'string' && targetRateSerie.val !== "—" && inflationSerie && typeof inflationSerie.val === 'string' && inflationSerie.val !== "—") {
     updateRealRateMonitor(targetRateSerie, inflationSerie, cetesSerie, tiieSerie);
   } else {
     const label = $("#realRateLabel");
@@ -352,12 +419,60 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
   renderTicker(favorites);
 
   // --- Rendering Analysis Tab ---
-  const expectationsList = ANALYSIS_SERIES.filter(s => s.category === "expectation");
-  const macroList = ANALYSIS_SERIES.filter(s => s.category === "macro");
 
   const renderAnalysisSection = (list, containerId) => {
     const analysisRows = list.map(cfg => {
       const s = byId.get(cfg.id);
+      
+      let variationHtml = "";
+      if (s && typeof s.val === 'string' && typeof s.prev === 'string' && s.val !== "—") {
+          const v1 = parseFloat(s.val.replace(",", "."));
+          const v2 = parseFloat(s.prev.replace(",", "."));
+          const diff = v1 - v2;
+          
+          if (!isNaN(diff) && v2 !== 0) {
+              let displayVal = "";
+              let numVal = 0;
+              // Percentages get absolute difference (bps / percent), others get percent change
+              if (cfg.type === "percent") {
+                  numVal = diff;
+                  displayVal = (numVal > 0 ? "+" : "") + numVal.toFixed(2) + "%";
+              } else {
+                  numVal = (diff / v2) * 100;
+                  displayVal = (numVal > 0 ? "+" : "") + numVal.toFixed(2) + "%";
+              }
+              
+              if (numVal !== 0) {
+                  const isPositive = numVal > 0;
+                  // Handle inverse logic for unemployment (higher is worse) or INPC (higher inflation is worse)
+                  // For now, simple standard: Green = goes up, Red = goes down.
+                  // Except for specific inverse metrics
+                  let colorClass = isPositive ? "bg-emerald-500/10" : "bg-rose-500/10";
+                  let textClass = isPositive ? "text-emerald-400" : "text-rose-400";
+                  const isInverse = cfg.title.toLowerCase().includes("infl") || cfg.title.toLowerCase().includes("desocupación") || cfg.title.toLowerCase().includes("usd/mxn");
+                  
+                  if (isInverse) {
+                      colorClass = isPositive ? "bg-rose-500/10" : "bg-emerald-500/10";
+                      textClass = isPositive ? "text-rose-400" : "text-emerald-400";
+                  }
+                  
+                  const arrowIcon = isPositive ? "arrow_upward" : "arrow_downward";
+                  const periodText = cfg.periodicity ? cfg.periodicity.toLowerCase() : "";
+                  variationHtml = `
+                    <div class="flex items-center gap-2">
+                        <span class="flex items-center justify-center w-6 h-6 rounded-full ${colorClass}">
+                            <span class="material-symbols-outlined text-[15px] ${textClass}">${arrowIcon}</span>
+                        </span>
+                        <div class="flex flex-col justify-center">
+                            <span class="${textClass} text-[11.5px] font-bold leading-none">${Math.abs(numVal).toFixed(2)}%</span>
+                            ${periodText ? `<span class="text-slate-500 text-[8.5px] font-bold uppercase tracking-wider mt-0.5 leading-none">${periodText}</span>` : ''}
+                        </div>
+                    </div>
+                  `;
+              }
+          }
+      }
+
       return {
         id: cfg.id,
         name: cfg.title,
@@ -366,21 +481,70 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
         val: s?.val,
         prev: s?.prev,
         prevDate: s?.prevDate,
+        variationHtml: variationHtml,
         config: cfg
       };
     });
     render(analysisRows, $(containerId));
   };
 
-  renderAnalysisSection(expectationsList, "#expectationsCards");
-  renderAnalysisSection(macroList, "#macroCards");
+  const renderExpectations = () => {
+    const container = $("#expectationsCards");
+    if (!container) return;
+    container.innerHTML = "";
+    
+    EXPECTATIONS_SERIES.forEach(cfg => {
+      const sT = byId.get(cfg.idT);
+      const sT1 = byId.get(cfg.idT1);
+      
+      const valT = sT && sT.val !== "—" ? sT.val : null;
+      const valT1 = sT1 && sT1.val !== "—" ? sT1.val : null;
+      
+      let trendHtml = "";
+      if (valT && typeof valT === 'string' && valT1 && typeof valT1 === 'string') {
+        const v1 = parseFloat(valT.replace(",", "."));
+        const v2 = parseFloat(valT1.replace(",", "."));
+        if (v2 > v1) trendHtml = `<span class="text-rose-400 font-bold ml-1" title="Al alza">↑</span>`;
+        else if (v2 < v1) trendHtml = `<span class="text-emerald-400 font-bold ml-1" title="A la baja">↓</span>`;
+        else trendHtml = `<span class="text-slate-400 font-bold ml-1" title="Sin cambio">=</span>`;
+        
+        // Inverse logic for PIB (growth is good/emerald, inflation/rates up is bad/rose)
+        if (cfg.title.includes("PIB")) {
+          if (v2 > v1) trendHtml = `<span class="text-emerald-400 font-bold ml-1" title="Al alza">↑</span>`;
+          else if (v2 < v1) trendHtml = `<span class="text-rose-400 font-bold ml-1" title="A la baja">↓</span>`;
+        }
+      }
+      
+      const displayT = valT ? fmtValue({ type: cfg.type, decimals: cfg.decimals, currency: cfg.currency }, valT) : "--";
+      const displayT1 = valT1 ? fmtValue({ type: cfg.type, decimals: cfg.decimals, currency: cfg.currency }, valT1) : "--";
+
+      const card = document.createElement("div");
+      card.className = "bg-white/5 border border-white/10 rounded-xl p-3 flex justify-between items-center";
+      card.innerHTML = `
+        <div class="flex flex-col">
+          <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">${cfg.title}</span>
+          <span class="text-[9px] text-slate-500 mt-0.5">${cfg.periodicity}</span>
+        </div>
+        <div class="text-sm font-bold text-white tabular-nums flex items-center gap-2">
+           <span class="text-slate-300" title="Periodo t">${displayT}</span>
+           <span class="text-slate-600 text-[10px] material-symbols-outlined">arrow_forward</span>
+           <span title="Periodo t+1">${displayT1}${trendHtml}</span>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  };
+
+  renderExpectations();
+  renderAnalysisSection(CORE_HEALTH_SERIES, "#coreHealthCards");
+  renderAnalysisSection(EXTERNAL_VULN_SERIES, "#externalVulnCards");
 
   // --- Inflation vs Expectations Comparison ---
   const currentInfl = byId.get('SP74665');
   const expectedInfl = byId.get('SR14138');
   const warningEl = $("#inflationWarning");
 
-  if (currentInfl?.val && expectedInfl?.val && warningEl) {
+  if (currentInfl && typeof currentInfl.val === 'string' && expectedInfl && typeof expectedInfl.val === 'string' && warningEl) {
     const cVal = parseFloat(currentInfl.val.replace(",", "."));
     const eVal = parseFloat(expectedInfl.val.replace(",", "."));
 
@@ -390,6 +554,11 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
     } else {
       warningEl.style.display = "none";
     }
+  }
+
+  // UPDATE CUSTOM ALERTS DROPDOWN
+  if (typeof initCustomAlertsSettings === "function") {
+    initCustomAlertsSettings(currentList, cachedSeriesData);
   }
 }
 
@@ -404,7 +573,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
     // Only re-render if data actually changed
     if (newHash !== lastRenderedHash) {
-      console.log("[Popup] Cache updated, silent re-render...");
+
       lastRenderedHash = newHash;
       chrome.storage.local.get(["sieSeries", "lastUpdated"]).then(s => {
         renderData(newData, s.sieSeries, s.lastUpdated);
@@ -470,12 +639,29 @@ function saveCalculatorState() {
 
 async function loadCalculatorState() {
   const { calculatorState } = await chrome.storage.local.get("calculatorState");
+  
+  // Set INPC limits (data available until previous month, starting from Jan 1969)
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  const maxMonth = d.toISOString().slice(0, 7);
+  
+  const initDateEl = $("#fiscalInitialDate");
+  const finalDateEl = $("#fiscalFinalDate");
+  if (initDateEl) {
+    initDateEl.max = maxMonth;
+    initDateEl.min = "1969-01";
+  }
+  if (finalDateEl) {
+    finalDateEl.max = maxMonth;
+    finalDateEl.min = "1969-01";
+  }
+
   if (calculatorState) {
     if ($("#calcAmount")) $("#calcAmount").value = calculatorState.udiAmount || "";
     if (calculatorState.udiMode) currentMode = calculatorState.udiMode;
     if ($("#fiscalAmount")) $("#fiscalAmount").value = calculatorState.fiscalAmount || "";
-    if ($("#fiscalInitialDate")) $("#fiscalInitialDate").value = calculatorState.fiscalInitialDate || "";
-    if ($("#fiscalFinalDate")) $("#fiscalFinalDate").value = calculatorState.fiscalFinalDate || "";
+    if (initDateEl) initDateEl.value = calculatorState.fiscalInitialDate || "";
+    if (finalDateEl) finalDateEl.value = calculatorState.fiscalFinalDate || "";
     updateCalculator();
   }
 }
@@ -493,7 +679,7 @@ function updateRealRateMonitor(targetRateSerie, inflationSerie, cetesSerie, tiie
   const realRate = calculateRealRate(nominal, inflation);
 
   // Spread CETES
-  if (cetesSerie && cetesSerie.val) {
+  if (cetesSerie && typeof cetesSerie.val === 'string' && cetesSerie.val !== "—") {
     const cetes = parseFloat(cetesSerie.val.replace(",", "."));
     const spread = cetes - nominal;
     const spreadEl = $("#cetesSpread");
@@ -503,7 +689,7 @@ function updateRealRateMonitor(targetRateSerie, inflationSerie, cetesSerie, tiie
   }
 
   // Spread TIIE
-  if (tiieSerie && tiieSerie.val) {
+  if (tiieSerie && typeof tiieSerie.val === 'string' && tiieSerie.val !== "—") {
     const tiie = parseFloat(tiieSerie.val.replace(",", "."));
     const spread = tiie - nominal;
     const spreadEl = $("#tiieSpread");
@@ -550,30 +736,38 @@ function updateRealRateMonitor(targetRateSerie, inflationSerie, cetesSerie, tiie
   const profitBar = $("#realRateProfitBar");
 
   if (nominal > 0) {
-    // Proporción: cuánto de la tasa nominal se "come" la inflación
+    // Treat the Target Rate (nominal) as the 100% capacity of the bar
+    // If inflation is higher than the nominal rate, it eats 100% of the bar.
     const infP = Math.min(100, (inflation / nominal) * 100);
     inflationBar.style.width = `${infP}%`;
     profitBar.style.width = `${Math.max(0, 100 - infP)}%`;
 
-    // Colores dinámicos
+    // Visual Styling
     // Reset classes
     profitBar.classList.remove("bg-success", "bg-danger", "shadow-[0_0_10px_rgba(29,204,163,0.5)]", "shadow-[0_0_10px_rgba(201,58,86,0.5)]");
     if (labelContainer) labelContainer.classList.remove("text-success", "text-danger");
     if (labelDot) labelDot.classList.remove("bg-success", "bg-danger");
 
-    // Clear legacy inline styles
-    profitBar.style.background = "";
-    label.style.background = "";
-    label.style.color = "";
-
     if (realRate >= 0) {
-      profitBar.classList.add("bg-success", "shadow-[0_0_10px_rgba(29,204,163,0.5)]");
-      if (labelContainer) labelContainer.classList.add("text-success");
-      if (labelDot) labelDot.classList.add("bg-success");
+      profitBar.className = "h-full bar-segment bg-success shadow-[0_0_10px_rgba(29,204,163,0.5)]";
+      if (labelContainer) {
+        labelContainer.classList.add("text-success");
+        labelContainer.classList.remove("text-danger");
+      }
+      if (labelDot) {
+        labelDot.classList.add("bg-success");
+        labelDot.classList.remove("bg-danger");
+      }
     } else {
-      profitBar.classList.add("bg-danger", "shadow-[0_0_10px_rgba(201,58,86,0.5)]");
-      if (labelContainer) labelContainer.classList.add("text-danger");
-      if (labelDot) labelDot.classList.add("bg-danger");
+      profitBar.className = "h-full bar-segment bg-danger shadow-[0_0_10px_rgba(201,58,86,0.5)]";
+      if (labelContainer) {
+        labelContainer.classList.add("text-danger");
+        labelContainer.classList.remove("text-success");
+      }
+      if (labelDot) {
+        labelDot.classList.add("bg-danger");
+        labelDot.classList.remove("bg-success");
+      }
     }
   }
 }
@@ -589,7 +783,7 @@ async function showHistoricalView(seriesId, title, config) {
   const endInput = $("#historicalEndDate");
 
   // Switch Views - Hide all possible main views
-  ["marketView", "analysisView", "calculatorsView", "settingsView"].forEach(v => {
+  ["marketView", "analysisView", "calculatorsView", "alertsView"].forEach(v => {
     const el = $(`#${v}`);
     if (el) {
       el.classList.add("hidden");
@@ -807,23 +1001,12 @@ async function loadYieldCurve() {
     }
 
     // Sort data according to YIELD_CURVE_SERIES order or term
-    const YIELD_CURVE_CONFIG = [
-      { id: "SF43783", label: "1M", term: 1 },
-      { id: "SF43784", label: "3M", term: 3 },
-      { id: "SF43785", label: "6M", term: 6 },
-      { id: "SF43786", label: "1A", term: 12 },
-      { id: "SF43936", label: "3A", term: 36 },
-      { id: "SF43939", label: "5A", term: 60 },
-      { id: "SF43943", label: "10A", term: 120 },
-      { id: "SF43945", label: "20A", term: 240 },
-      { id: "SF43947", label: "30A", term: 360 }
-    ];
-
     const chartData = [];
-    for (const conf of YIELD_CURVE_CONFIG) {
+    for (const conf of YIELD_CURVE_SERIES) {
       const d = resp.data.find(x => x.id === conf.id);
-      if (d && d.val !== "—") {
-        chartData.push({ x: conf.label, y: parseFloat(d.val.replace(",", ".")) });
+      if (d && typeof d.val === "string" && d.val !== "—" && d.val !== "N/E") {
+        const typeNormalized = conf.type === "Bono M" ? "bonos" : "cetes";
+        chartData.push({ x: conf.label, y: parseFloat(d.val.replace(",", ".")), type: typeNormalized });
       }
     }
 
@@ -838,6 +1021,7 @@ async function loadYieldCurve() {
     const primaryColor = computedStyle.getPropertyValue('--primary').trim() || '#3FA69A';
     const textColor = computedStyle.getPropertyValue('--fg').trim() || '#1A3A5C';
     const gridColor = computedStyle.getPropertyValue('--border').trim() || '#E2E8F0';
+    const bonosColor = '#64748B'; // text-slate-500
 
     yieldCurveChartInstance = new Chart(canvas, {
       type: 'line',
@@ -850,7 +1034,20 @@ async function loadYieldCurve() {
           backgroundColor: primaryColor + '33',
           borderWidth: 2,
           pointRadius: 4,
-          pointBackgroundColor: primaryColor,
+          pointBackgroundColor: ctx => {
+            if (ctx.dataIndex === undefined) return primaryColor;
+            return chartData[ctx.dataIndex].type === 'bonos' ? bonosColor : primaryColor;
+          },
+          pointBorderColor: ctx => {
+            if (ctx.dataIndex === undefined) return primaryColor;
+            return chartData[ctx.dataIndex].type === 'bonos' ? bonosColor : primaryColor;
+          },
+          segment: {
+            borderColor: ctx => {
+              if (ctx.p1DataIndex === undefined) return primaryColor;
+              return chartData[ctx.p1DataIndex].type === 'bonos' ? bonosColor : primaryColor;
+            }
+          },
           fill: true,
           tension: 0.4
         }]
@@ -868,7 +1065,10 @@ async function loadYieldCurve() {
             borderWidth: 1,
             displayColors: false,
             callbacks: {
-              label: function (ctx) { return ctx.parsed.y.toFixed(2) + '%'; }
+              label: function (ctx) { 
+                const isBonos = chartData[ctx.dataIndex].type === 'bonos';
+                return ` ${isBonos ? 'Bono M' : 'CETES'}  ${ctx.parsed.y.toFixed(2)}%`; 
+              }
             }
           }
         },
@@ -894,15 +1094,17 @@ async function loadYieldCurve() {
 
 function renderTicker(favorites) {
   let tickerItems = [];
+  const marqueeContainer = document.getElementById("marqueeContainer");
 
-  if (favorites.length === 0) {
-    // Elegant fallback if no favorites
-    tickerItems = [
-      { name: "S&P 500", val: "---", variation: null },
-      { name: "USD/MXN", val: "---", variation: null },
-      { name: "Tasa Banxico", val: "---", variation: null }
-    ];
+  if (!favorites || favorites.length === 0) {
+    if (marqueeContainer) {
+      marqueeContainer.style.display = 'none';
+    }
+    return;
   } else {
+    if (marqueeContainer) {
+      marqueeContainer.style.display = '';
+    }
     tickerItems = favorites.map(f => {
       return {
         id: f.id,
@@ -1013,13 +1215,13 @@ async function loadEconomicCalendar() {
       }
 
       item.innerHTML = `
-          <div class="calendar-item-header">
-            <span class="calendar-item-title">${ev.title} <strong>(${ev.country})</strong></span>
-            <span class="calendar-item-time" style="text-transform: capitalize">${displayDate} <br/> ${displayTime}</span>
+          <div class="flex items-start justify-between w-full mb-1">
+            <a href="${ev.link}" target="_blank" rel="noopener noreferrer" title="View details on MyFxBook" class="calendar-item-title hover:text-primary hover:underline pr-2 leading-tight transition-colors cursor-pointer">${ev.title} <span class="text-slate-500 font-normal">(${ev.country})</span></a>
+            <span class="${impactClass} shrink-0 mt-0.5">${impactLabel}</span>
           </div>
-          <div class="calendar-item-meta">
-             <span class="${impactClass}">${impactLabel}</span>
-             <span>Prev: ${ev.previous || '--'} | Proy: ${ev.forecast || '--'}</span>
+          <div class="flex items-center justify-between w-full">
+             <span class="calendar-item-time" style="text-transform: capitalize">${displayDate} &bull; ${displayTime}</span>
+             <span class="text-[11px] text-slate-400 font-medium tabular-nums">Prev: <span class="text-white">${ev.previous || '--'}</span> <span class="text-slate-600 mx-1">|</span> Proy: <span class="text-white">${ev.forecast || '--'}</span></span>
           </div>
         `;
       container.appendChild(item);
@@ -1048,8 +1250,12 @@ $("#backToMain")?.addEventListener("click", () => {
   }
 });
 
-$("#openAdvancedSettings")?.addEventListener("click", () => {
-  chrome.tabs.create({ url: "onboarding.html" });
+$("#settingsBtn")?.addEventListener("click", () => {
+  if (chrome.runtime.openOptionsPage) {
+    chrome.runtime.openOptionsPage();
+  } else {
+    chrome.tabs.create({ url: "onboarding.html" });
+  }
 });
 
 $("#calcAmount")?.addEventListener("input", updateCalculator);
@@ -1063,7 +1269,7 @@ $("#swapMode")?.addEventListener("click", () => {
   saveCalculatorState();
 });
 
-const views = ["marketView", "analysisView", "calculatorsView", "settingsView"];
+const views = ["marketView", "analysisView", "calculatorsView", "alertsView"];
 document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab-btn").forEach(b => {
@@ -1224,14 +1430,134 @@ $("#findFixBtn")?.addEventListener("click", async () => {
 
 refresh();
 
-// Settings Persistence
-chrome.storage.local.get("volatThreshold").then(({ volatThreshold = 0.5 }) => {
-  const el = $("#volatThreshold");
-  if (el) el.value = volatThreshold;
+// --- Custom Alerts Logic ---
+async function renderCustomAlertsList() {
+  const { customAlerts = [] } = await chrome.storage.local.get("customAlerts");
+  const listEl = $("#alertsList");
+  if (!listEl) return;
+
+  if (customAlerts.length === 0) {
+    listEl.innerHTML = `
+      <div class="py-4 text-center">
+        <span class="material-symbols-outlined text-slate-600 mb-2 text-2xl">notifications_paused</span>
+        <p class="text-[10px] text-slate-400">Aún no tienes alertas.</p>
+        <p class="text-[9px] text-slate-500 mt-1">Selecciona un indicador arriba y define un porcentaje para comenzar.</p>
+      </div>`;
+    return;
+  }
+
+  listEl.innerHTML = "";
+  customAlerts.forEach(alert => {
+    const item = document.createElement("div");
+    item.className = "flex items-center justify-between bg-white/5 border border-white/10 p-2 rounded group";
+    
+    // Format the base value neatly
+    let baseFormat = alert.baseValue;
+    if (typeof alert.baseValue === 'number') {
+      baseFormat = alert.baseValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4});
+    }
+
+    item.innerHTML = `
+      <div class="flex items-center gap-3">
+        <div class="bg-primary/20 text-primary px-2 py-1 rounded text-[10px] font-bold border border-primary/30">
+          ±${alert.threshold}%
+        </div>
+        <div>
+          <div class="text-[11px] font-bold text-white mb-0.5">${alert.seriesName}</div>
+          <div class="text-[9px] text-slate-400">Avisar si varía desde ${baseFormat}</div>
+        </div>
+      </div>
+      <button class="text-slate-500 hover:text-danger hover:bg-danger/10 p-1 rounded transition-colors delete-alert-btn opacity-0 group-hover:opacity-100 focus:opacity-100" data-id="${alert.id}" title="Eliminar Alerta">
+        <span class="material-symbols-outlined text-[16px] block">delete</span>
+      </button>
+    `;
+    listEl.appendChild(item);
+  });
+
+  document.querySelectorAll(".delete-alert-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      const id = e.currentTarget.closest('button').dataset.id;
+      const { customAlerts = [] } = await chrome.storage.local.get("customAlerts");
+      const newList = customAlerts.filter(a => a.id !== id);
+      await chrome.storage.local.set({ customAlerts: newList });
+      showToast("Alerta eliminada");
+      renderCustomAlertsList();
+    });
+  });
+}
+
+function initCustomAlertsSettings(sieSeries, cachedSeriesData) {
+  const selectEl = $("#alertSeriesSelect");
+  if (!selectEl) return;
+  
+  selectEl.innerHTML = "";
+  
+  if (!sieSeries || sieSeries.length === 0) {
+    const opt = document.createElement("option");
+    opt.textContent = "No hay indicadores";
+    opt.value = "";
+    selectEl.appendChild(opt);
+    return;
+  }
+  
+  const allMetadata = [...DEFAULT_SERIES, ...YF_CATALOG];
+  
+  sieSeries.forEach(s => {
+    const meta = allMetadata.find(d => d.id === s.id) || s;
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.textContent = meta.title || s.id;
+    selectEl.appendChild(opt);
+  });
+
+  renderCustomAlertsList();
+}
+
+$("#addAlertBtn")?.addEventListener("click", async () => {
+  const selectEl = $("#alertSeriesSelect");
+  const thresholdInput = $("#alertThresholdInput");
+  
+  const seriesId = selectEl.value;
+  const seriesName = selectEl.options[selectEl.selectedIndex]?.text;
+  const threshold = parseFloat(thresholdInput.value);
+  
+  if (!seriesId || isNaN(threshold) || threshold <= 0) {
+    return showToast("Ingresa un porcentaje válido");
+  }
+
+  const { cachedSeriesData = [] } = await chrome.storage.local.get("cachedSeriesData");
+  const currentData = cachedSeriesData.find(s => s.id === seriesId);
+  
+  if (!currentData || currentData.val === "—" || currentData.error) {
+    return showToast("Esperando datos actualizados", 2000);
+  }
+  
+  const baseValueTStr = currentData.val.toString().replace(",", ".");
+  const baseValue = parseFloat(baseValueTStr);
+  
+  if (isNaN(baseValue)) {
+    return showToast("El valor base no es numérico");
+  }
+
+  const { customAlerts = [] } = await chrome.storage.local.get("customAlerts");
+  
+  if (customAlerts.length >= 10) {
+    return showToast("Límite de 10 alertas");
+  }
+  
+  const newAlert = {
+    id: crypto.randomUUID(),
+    seriesId,
+    seriesName,
+    threshold,
+    baseValue
+  };
+  
+  customAlerts.push(newAlert);
+  await chrome.storage.local.set({ customAlerts });
+  
+  thresholdInput.value = "";
+  showToast("Alerta creada");
+  renderCustomAlertsList();
 });
 
-$("#volatThreshold")?.addEventListener("change", (e) => {
-  const val = parseFloat(e.target.value) || 0.5;
-  chrome.storage.local.set({ volatThreshold: val });
-  showToast("Umbral actualizado");
-});

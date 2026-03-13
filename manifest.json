@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Indicadores Banxico (SIE)",
-  "version": "3.0",
-  "description": "Datos oficiales de Banxico, calculadora de UDIs, actualización fiscal (INPC) y alertas de volatilidad en tiempo real.",
+  "name": "Indicadores MX",
+  "version": "1.0",
+  "description": "Tu dashboard financiero: indicadores oficiales de Banxico e INEGI, mercados globales en tiempo real y alertas de volatilidad.",
   "action": {
     "default_popup": "popup.html"
   },
@@ -14,12 +14,10 @@
   ],
   "host_permissions": [
     "https://www.banxico.org.mx/*",
-    "https://anterior.banxico.org.mx/*",
-    "https://www.alphavantage.co/*",
     "https://www.inegi.org.mx/*",
     "https://query1.finance.yahoo.com/*",
-    "https://www.myfxbook.com/*",
-    "https://api.binance.com/*"
+    "https://query2.finance.yahoo.com/*",
+    "https://www.myfxbook.com/*"
   ],
   "background": {
     "service_worker": "background.js",

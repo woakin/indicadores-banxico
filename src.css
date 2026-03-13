@@ -66,7 +66,7 @@
     }
 
     .card-value {
-        @apply text-[22px] font-bold text-white leading-none z-10;
+        @apply text-[22px] font-bold text-white leading-none z-10 tabular-nums;
     }
 
     /* Tabs */
@@ -98,7 +98,7 @@
 
     /* Calendar styles */
     .calendar-item {
-        @apply flex items-center justify-between py-3 border-b border-card-border last:border-0;
+        @apply flex flex-col py-3 border-b border-card-border last:border-0;
     }
 
     .calendar-item-header {
@@ -176,9 +176,25 @@
         @apply bg-primary text-background-dark shadow-lg;
     }
 
-    /* Make calendar picker icons white instead of default black */
-    input[type="date"]::-webkit-calendar-picker-indicator {
-        filter: invert(1) opacity(0.7);
+    /* Style calendar picker icons */
+    input[type="date"]::-webkit-calendar-picker-indicator,
+    input[type="month"]::-webkit-calendar-picker-indicator {
         cursor: pointer;
+        opacity: 0.7;
+    }
+    input[type="date"]::-webkit-calendar-picker-indicator:hover,
+    input[type="month"]::-webkit-calendar-picker-indicator:hover {
+        opacity: 1;
+    }
+
+    /* Force dark mode for native inputs and selects */
+    input[type="date"],
+    input[type="month"],
+    select {
+        color-scheme: dark;
+    }
+
+    option {
+        @apply bg-background-dark text-white;
     }
 }

@@ -559,8 +559,8 @@ import { DEFAULT_SERIES, SERIES_ID_REGEX, BANXICO_API_BASE, INEGI_API_BASE, YF_C
 
       const sourceBadge = `<span class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ml-2 flex-shrink-0 ${badgeClass}">${badgeLabel}</span>`;
       const favStarHtml = s.isFavorite
-        ? `<span class="material-symbols-outlined text-warning text-lg text-glow-warning">star</span>`
-        : `<span class="material-symbols-outlined text-lg">star</span>`;
+        ? `<span class="material-symbols-outlined text-warning text-lg text-glow-warning drop-shadow-md" style="font-variation-settings: 'FILL' 1;">star</span>`
+        : `<span class="material-symbols-outlined text-lg opacity-40 group-hover:opacity-100 transition-opacity">star</span>`;
 
       el.innerHTML = `
         <span class="material-symbols-outlined text-white/20 text-lg hover:text-white/60 transition-colors shrink-0">drag_indicator</span>
@@ -572,7 +572,7 @@ import { DEFAULT_SERIES, SERIES_ID_REGEX, BANXICO_API_BASE, INEGI_API_BASE, YF_C
         </div>
         <div class="flex gap-1.5 shrink-0 items-center">
           <!-- Favorite Star -->
-          <button class="favorite-toggle w-7 h-7 flex items-center justify-center rounded transition-colors ${s.isFavorite ? 'text-warning' : 'text-text-muted hover:text-white hover:bg-white/10'}" title="Añadir a Marquee Superior">
+          <button class="favorite-toggle group w-7 h-7 flex items-center justify-center rounded transition-colors ${s.isFavorite ? 'text-warning' : 'text-text-muted hover:text-white hover:bg-white/10'}" title="${s.isFavorite ? 'Quitar de Marquee Superior' : 'Añadir a Marquee Superior'}">
             ${favStarHtml}
           </button>
           <div class="w-px h-4 bg-white/10 mx-1"></div>

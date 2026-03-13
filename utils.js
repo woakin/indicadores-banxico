@@ -25,9 +25,13 @@ export function latestValidObservation(datos) {
 export function fmtValue(cfg, datoStr) {
   if (!datoStr || datoStr === "N/E") return "—";
 
-  // Replace comma with dot for decimal handling, then clean non-numeric chars
-  // Note: Handle if datoStr is already a number
-  const cleanStr = String(datoStr).replace(",", ".").replace(/[^0-9.-]/g, "");
+  let str = String(datoStr);
+  if (str.includes(',') && str.includes('.')) {
+    str = str.replace(/,/g, '');
+  } else {
+    str = str.replace(',', '.');
+  }
+  const cleanStr = str.replace(/[^0-9.-]/g, "");
   if (cleanStr === "" || cleanStr === "-") return datoStr;
 
   const x = Number(cleanStr);
