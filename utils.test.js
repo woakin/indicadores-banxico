@@ -1,4 +1,4 @@
-import { fmtValue } from './utils.js';
+import { fmtValue, fmtDate } from './utils.js';
 
 describe('fmtValue', () => {
   test('returns "—" for null, undefined, empty string or "N/E"', () => {
@@ -52,5 +52,52 @@ describe('fmtValue', () => {
 
   test('returns original string if not a number', () => {
     expect(fmtValue({}, 'not-a-number')).toBe('not-a-number');
+  });
+});
+
+describe('fmtDate', () => {
+  test('returns "—" for falsy values or "—"', () => {
+    expect(fmtDate(null, 'Mensual')).toBe('—');
+    expect(fmtDate('', 'Mensual')).toBe('—');
+    expect(fmtDate('—', 'Mensual')).toBe('—');
+  });
+
+  test('formats MM/YYYY correctly with periodicity Mensual', () => {
+    expect(fmtDate('05/2023', 'Mensual')).toBe('may 2023');
+    expect(fmtDate('12/2023', 'Mensual')).toBe('dic 2023');
+  });
+
+  test('formats DD/MM/YYYY correctly with periodicity Mensual', () => {
+    expect(fmtDate('15/05/2023', 'Mensual')).toBe('may 2023');
+  });
+
+  test('formats DD/MM/YYYY correctly with periodicity Quincenal', () => {
+    // Current implementation for Quincenal returns "month year" if matches DD/MM/YYYY
+    expect(fmtDate('15/05/2023', 'Quincenal')).toBe('may 2023');
+  });
+
+  test('fallback handles MM/YYYY correctly without specific periodicity', () => {
+    // If periodicity is not Mensual/Quincenal, MM/YYYY fallback results in 01/MM/YYYY formatted with default opts
+    expect(fmtDate('05/2023', 'Diario')).toBe('01/05/2023');
+  });
+
+  test('fallback handles DD/MM/YYYY correctly without specific periodicity', () => {
+    // Diario or other: DD/MM/YYYY -> 15/05/2023
+    expect(fmtDate('15/05/2023', 'Diario')).toBe('15/05/2023');
+  });
+
+  test('fallback handles YYYY-MM-DD (ISO) correctly', () => {
+    expect(fmtDate('2023-05-15', 'Diario')).toBe('15/05/2023');
+    expect(fmtDate('2023-05-15', 'Mensual')).toBe('may 2023');
+  });
+
+  test('returns original string if format is unrecognized', () => {
+    expect(fmtDate('2023/05/15', 'Diario')).toBe('2023/05/15');
+    expect(fmtDate('May 2023', 'Mensual')).toBe('May 2023');
+  });
+
+  test('returns original string for invalid dates that match regex but result in rollover', () => {
+    // 13/2023 matches MM/YYYY regex. JS Date rolls it over to Jan 2024.
+    expect(fmtDate('13/2023', 'Mensual')).toBe('ene 2024');
   });
 });
