@@ -861,11 +861,28 @@ async function showHistoricalView(seriesId, title, config) {
       $("#exportCsv").style.display = "inline-flex";
 
       const table = document.createElement("table");
-      table.innerHTML = "<thead><tr><th>Fecha</th><th style='text-align:right'>Valor</th></tr></thead>";
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+      const th1 = document.createElement("th");
+      th1.textContent = "Fecha";
+      const th2 = document.createElement("th");
+      th2.textContent = "Valor";
+      th2.style.textAlign = "right";
+      headerRow.appendChild(th1);
+      headerRow.appendChild(th2);
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
       const tbody = document.createElement("tbody");
       for (let i = resp.data.length - 1; i >= 0; i--) {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${fmtDate(resp.data[i].fecha, config.periodicity)}</td><td style="text-align:right">${fmtValue(config, resp.data[i].dato)}</td>`;
+        const td1 = document.createElement("td");
+        td1.textContent = fmtDate(resp.data[i].fecha, config.periodicity);
+        const td2 = document.createElement("td");
+        td2.textContent = fmtValue(config, resp.data[i].dato);
+        td2.style.textAlign = "right";
+        tr.appendChild(td1);
+        tr.appendChild(td2);
         tbody.appendChild(tr);
       }
       table.appendChild(tbody);
