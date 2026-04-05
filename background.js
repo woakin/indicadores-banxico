@@ -565,10 +565,11 @@ async function checkCustomAlerts() {
             try {
                 const yfIds = [...new Set(yfAlerts.map(a => a.seriesId))];
                 const yfDataList = await fetchYfBatchProxy(yfIds);
+                const yfMap = new Map(yfDataList.map(d => [d.id, d]));
                 for (let i = 0; i < customAlerts.length; i++) {
                     const alert = customAlerts[i];
                     if (alert.seriesId.startsWith("YF_")) {
-                        const yData = yfDataList.find(d => d.id === alert.seriesId);
+                        const yData = yfMap.get(alert.seriesId);
                         if (yData) evaluateAlert(i, yData.val);
                     }
                 }
@@ -595,10 +596,11 @@ async function checkCustomAlerts() {
             const bIds = [...new Set(banxicoAlerts.map(a => a.seriesId))];
             try {
                 const bResults = await fetchBanxicoSeries(bIds, sieToken);
+                const bMap = new Map(bResults.map(r => [r.id, r]));
                 for (let i = 0; i < customAlerts.length; i++) {
                     const alert = customAlerts[i];
                     if (!alert.seriesId.startsWith("YF_") && !alert.seriesId.startsWith("INEGI_")) {
-                        const bData = bResults.find(r => r.id === alert.seriesId);
+                        const bData = bMap.get(alert.seriesId);
                         if (bData) evaluateAlert(i, bData.val);
                     }
                 }
