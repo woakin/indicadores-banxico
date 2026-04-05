@@ -114,3 +114,10 @@ export function fmtDate(dateStr, periodicity) {
 
   return date.toLocaleDateString("es-MX", opts);
 }
+
+/**
+ * Fisher's exact formula: ((1 + i/100) / (1 + pi/100) - 1) * 100
+ */
+export function calculateRealRate(nominal, inflation) {
+  return (((1 + (nominal / 100)) / (1 + (inflation / 100))) - 1) * 100;
+}

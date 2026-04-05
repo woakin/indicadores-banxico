@@ -1,4 +1,34 @@
-import { fmtValue, fmtDate } from './utils.js';
+import { fmtValue, fmtDate, calculateRealRate } from './utils.js';
+
+describe('calculateRealRate', () => {
+  test('calculates correct real rate for positive values', () => {
+    // ((1 + 0.10) / (1 + 0.05) - 1) * 100 = (1.10 / 1.05 - 1) * 100 = 4.7619...
+    expect(calculateRealRate(10, 5)).toBeCloseTo(4.7619, 4);
+  });
+
+  test('returns 0 when nominal equals inflation', () => {
+    expect(calculateRealRate(5, 5)).toBe(0);
+  });
+
+  test('returns nominal when inflation is 0', () => {
+    expect(calculateRealRate(5, 0)).toBeCloseTo(5, 4);
+  });
+
+  test('calculates correct real rate for negative inflation (deflation)', () => {
+    // ((1 + 0.05) / (1 - 0.02) - 1) * 100 = (1.05 / 0.98 - 1) * 100 = 7.142857...
+    expect(calculateRealRate(5, -2)).toBeCloseTo(7.142857, 5);
+  });
+
+  test('returns negative real rate when inflation exceeds nominal', () => {
+    // ((1 + 0.05) / (1 + 0.10) - 1) * 100 = (1.05 / 1.10 - 1) * 100 = -4.545454...
+    expect(calculateRealRate(5, 10)).toBeCloseTo(-4.545454, 5);
+  });
+
+  test('handles zero nominal and positive inflation', () => {
+    // ((1 + 0) / (1 + 0.05) - 1) * 100 = (1 / 1.05 - 1) * 100 = -4.7619...
+    expect(calculateRealRate(0, 5)).toBeCloseTo(-4.7619, 4);
+  });
+});
 
 describe('fmtValue', () => {
   test('returns "—" for null, undefined, empty string or "N/E"', () => {

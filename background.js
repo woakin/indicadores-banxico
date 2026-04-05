@@ -189,9 +189,9 @@ async function fetchBanxicoSeries(ids, token) {
         };
     };
 
-    // We must fetch data points individually because we need the `prev` observation 
+    // We must fetch data points individually because we need the `prev` observation
     // to calculate variation. The batch API `fetchOportuno` only returns 1 point.
-    
+
     // Calculate date range: Today down to 2 years ago (to cover annual and monthly series)
     const d = new Date();
     const endDate = d.toISOString().split("T")[0]; // YYYY-MM-DD
@@ -201,10 +201,10 @@ async function fetchBanxicoSeries(ids, token) {
     const promises = ids.map(async (id) => {
         try {
             const dataArr = await fetchHistoricalData(id, token, startDate, endDate);
-            
+
             // Reformat it to match what `formatItem` expects (a series object `s`)
             // which has `datos` inner array, `idSerie`, and `titulo`.
-            
+
             return formatItem({ idSerie: id, titulo: id, datos: dataArr });
         } catch (indErr) {
             console.warn(`[Background] Banxico fetch failure for ${id}:`, indErr.message);
@@ -235,7 +235,7 @@ async function fetchYfBatchProxy(yfIds) {
     if (!yfIds || yfIds.length === 0) return [];
 
     const symbols = yfIds.map(id => id.replace("YF_", "").toUpperCase());
-    
+
     // Yahoo v7/quote fails without crumb. We use v8/chart in parallel.
     const fetchAsset = async (symbol) => {
         try {
@@ -325,13 +325,13 @@ async function fetchInegiSeries(inegiId, token) {
             if (r.ok) {
                 const json = await r.json();
                 const obsArray = json.Series?.[0]?.OBSERVATIONS;
-                
+
                 if (obsArray && obsArray.length > 0) {
                     const len = obsArray.length;
                     // INEGI data is returned chronologically (oldest at index 0)
                     const latest = obsArray[len - 1];
                     const prev = len > 1 ? obsArray[len - 2] : null;
-                    
+
                     let variation = null;
                     if (latest && prev) {
                         const v1 = parseFloat(latest.OBS_VALUE);
