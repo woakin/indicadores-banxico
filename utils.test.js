@@ -1,4 +1,4 @@
-import { fmtValue, fmtDate } from './utils.js';
+import { fmtValue, fmtDate, escapeHTML } from './utils.js';
 
 describe('fmtValue', () => {
   test('returns "—" for null, undefined, empty string or "N/E"', () => {
@@ -99,5 +99,24 @@ describe('fmtDate', () => {
   test('returns original string for invalid dates that match regex but result in rollover', () => {
     // 13/2023 matches MM/YYYY regex. JS Date rolls it over to Jan 2024.
     expect(fmtDate('13/2023', 'Mensual')).toBe('ene 2024');
+  });
+});
+
+describe('escapeHTML', () => {
+  test('escapes special characters', () => {
+    expect(escapeHTML('<b>hello</b>')).toBe('&lt;b&gt;hello&lt;/b&gt;');
+    expect(escapeHTML('hello & world')).toBe('hello &amp; world');
+    expect(escapeHTML('double " quote')).toBe('double &quot; quote');
+    expect(escapeHTML("single ' quote")).toBe('single &#039; quote');
+  });
+
+  test('returns original input if not a string', () => {
+    expect(escapeHTML(null)).toBe(null);
+    expect(escapeHTML(undefined)).toBe(undefined);
+    expect(escapeHTML(123)).toBe(123);
+  });
+
+  test('handles empty string', () => {
+    expect(escapeHTML('')).toBe('');
   });
 });

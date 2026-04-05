@@ -1,4 +1,5 @@
 import { DEFAULT_SERIES, SERIES_ID_REGEX, BANXICO_API_BASE, INEGI_API_BASE, YF_CATALOG, INEGI_CATALOG, BANXICO_CATALOG, DEFAULT_STOCKS, SUGGESTED_TICKERS } from './constants.js';
+import { escapeHTML } from './utils.js';
 
 (() => {
   const $ = s => document.querySelector(s);
@@ -557,7 +558,7 @@ import { DEFAULT_SERIES, SERIES_ID_REGEX, BANXICO_API_BASE, INEGI_API_BASE, YF_C
       if (isAV) { badgeLabel = "YF"; badgeClass = "bg-success/20 text-success"; }
       if (isInegi) { badgeLabel = "INEGI"; badgeClass = "bg-white/10 text-white"; }
 
-      const sourceBadge = `<span class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ml-2 flex-shrink-0 ${badgeClass}">${badgeLabel}</span>`;
+      const sourceBadge = `<span class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ml-2 flex-shrink-0 ${escapeHTML(badgeClass)}">${escapeHTML(badgeLabel)}</span>`;
       const favStarHtml = s.isFavorite
         ? `<span class="material-symbols-outlined text-warning text-lg text-glow-warning drop-shadow-md" style="font-variation-settings: 'FILL' 1;">star</span>`
         : `<span class="material-symbols-outlined text-lg opacity-40 group-hover:opacity-100 transition-opacity">star</span>`;
@@ -566,9 +567,9 @@ import { DEFAULT_SERIES, SERIES_ID_REGEX, BANXICO_API_BASE, INEGI_API_BASE, YF_C
         <span class="material-symbols-outlined text-white/20 text-lg hover:text-white/60 transition-colors shrink-0">drag_indicator</span>
         <div class="flex flex-col min-w-0 flex-1 pr-2 cursor-pointer edit-card" title="Clic para editar">
           <div class="text-sm font-semibold text-white flex items-center mb-0.5 min-w-0">
-            <span class="truncate flex-1 text-left">${s.title}</span>${sourceBadge}
+            <span class="truncate flex-1 text-left">${escapeHTML(s.title)}</span>${sourceBadge}
           </div>
-          <div class="text-[11px] text-text-muted font-mono truncate">${s.id}</div>
+          <div class="text-[11px] text-text-muted font-mono truncate">${escapeHTML(s.id)}</div>
         </div>
         <div class="flex gap-1.5 shrink-0 items-center">
           <!-- Favorite Star -->
