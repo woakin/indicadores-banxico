@@ -557,9 +557,7 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
   }
 
   // UPDATE CUSTOM ALERTS DROPDOWN
-  if (typeof initCustomAlertsSettings === "function") {
-    initCustomAlertsSettings(currentList, cachedSeriesData);
-  }
+  initCustomAlertsSettings(currentList, cachedSeriesData);
 }
 
 // Global state for anti-flicker
