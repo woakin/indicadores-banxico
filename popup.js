@@ -1,5 +1,5 @@
 import { DEFAULT_SERIES, CORE_HEALTH_SERIES, EXTERNAL_VULN_SERIES, YF_CATALOG, YIELD_CURVE_SERIES, EXPECTATIONS_SERIES } from './constants.js';
-import { fmtValue, fmtDate, latestValidObservation } from './utils.js';
+import { fmtValue, fmtDate } from './utils.js';
 
 const $ = s => document.querySelector(s);
 
@@ -98,7 +98,7 @@ function render(rows, containerOrWarn = false) {
     seenIds.add(cardId);
 
     let card = document.getElementById(cardId);
-    
+
     if (card) {
       // --- Update Existing Card ---
       const valText = card.querySelector(".val-text");
@@ -109,7 +109,7 @@ function render(rows, containerOrWarn = false) {
 
       if (valText) valText.textContent = r.value;
       if (dateText) dateText.textContent = r.date;
-      
+
       if (variationRow) {
         if (r.variationHtml) {
           variationRow.innerHTML = r.variationHtml;
@@ -163,7 +163,7 @@ function render(rows, containerOrWarn = false) {
 
     // NEW CARD STRUCTURE
     const info = document.createElement("div");
-    info.className = "flex flex-col h-full relative"; 
+    info.className = "flex flex-col h-full relative";
 
     // Top row: Title and Badge
     const topRow = document.createElement("div");
@@ -217,7 +217,7 @@ function render(rows, containerOrWarn = false) {
     date.className = "date-text text-[10px] text-text-muted font-medium tracking-wide mt-1.5";
     date.textContent = r.date;
     valueRow.appendChild(date);
-    
+
     info.appendChild(valueRow);
 
     // Bottom Row: Variation & Actions
@@ -275,7 +275,7 @@ function render(rows, containerOrWarn = false) {
     actions.appendChild(graphBtn);
 
     bottomRow.appendChild(actions);
-    
+
     info.appendChild(bottomRow);
     card.appendChild(info);
 
@@ -423,13 +423,13 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
   const renderAnalysisSection = (list, containerId) => {
     const analysisRows = list.map(cfg => {
       const s = byId.get(cfg.id);
-      
+
       let variationHtml = "";
       if (s && typeof s.val === 'string' && typeof s.prev === 'string' && s.val !== "—") {
           const v1 = parseFloat(s.val.replace(",", "."));
           const v2 = parseFloat(s.prev.replace(",", "."));
           const diff = v1 - v2;
-          
+
           if (!isNaN(diff) && v2 !== 0) {
               let displayVal = "";
               let numVal = 0;
@@ -441,7 +441,7 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
                   numVal = (diff / v2) * 100;
                   displayVal = (numVal > 0 ? "+" : "") + numVal.toFixed(2) + "%";
               }
-              
+
               if (numVal !== 0) {
                   const isPositive = numVal > 0;
                   // Handle inverse logic for unemployment (higher is worse) or INPC (higher inflation is worse)
@@ -450,12 +450,12 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
                   let colorClass = isPositive ? "bg-emerald-500/10" : "bg-rose-500/10";
                   let textClass = isPositive ? "text-emerald-400" : "text-rose-400";
                   const isInverse = cfg.title.toLowerCase().includes("infl") || cfg.title.toLowerCase().includes("desocupación") || cfg.title.toLowerCase().includes("usd/mxn");
-                  
+
                   if (isInverse) {
                       colorClass = isPositive ? "bg-rose-500/10" : "bg-emerald-500/10";
                       textClass = isPositive ? "text-rose-400" : "text-emerald-400";
                   }
-                  
+
                   const arrowIcon = isPositive ? "arrow_upward" : "arrow_downward";
                   const periodText = cfg.periodicity ? cfg.periodicity.toLowerCase() : "";
                   variationHtml = `
@@ -492,14 +492,14 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
     const container = $("#expectationsCards");
     if (!container) return;
     container.innerHTML = "";
-    
+
     EXPECTATIONS_SERIES.forEach(cfg => {
       const sT = byId.get(cfg.idT);
       const sT1 = byId.get(cfg.idT1);
-      
+
       const valT = sT && sT.val !== "—" ? sT.val : null;
       const valT1 = sT1 && sT1.val !== "—" ? sT1.val : null;
-      
+
       let trendHtml = "";
       if (valT && typeof valT === 'string' && valT1 && typeof valT1 === 'string') {
         const v1 = parseFloat(valT.replace(",", "."));
@@ -507,14 +507,14 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
         if (v2 > v1) trendHtml = `<span class="text-rose-400 font-bold ml-1" title="Al alza">↑</span>`;
         else if (v2 < v1) trendHtml = `<span class="text-emerald-400 font-bold ml-1" title="A la baja">↓</span>`;
         else trendHtml = `<span class="text-slate-400 font-bold ml-1" title="Sin cambio">=</span>`;
-        
+
         // Inverse logic for PIB (growth is good/emerald, inflation/rates up is bad/rose)
         if (cfg.title.includes("PIB")) {
           if (v2 > v1) trendHtml = `<span class="text-emerald-400 font-bold ml-1" title="Al alza">↑</span>`;
           else if (v2 < v1) trendHtml = `<span class="text-rose-400 font-bold ml-1" title="A la baja">↓</span>`;
         }
       }
-      
+
       const displayT = valT ? fmtValue({ type: cfg.type, decimals: cfg.decimals, currency: cfg.currency }, valT) : "--";
       const displayT1 = valT1 ? fmtValue({ type: cfg.type, decimals: cfg.decimals, currency: cfg.currency }, valT1) : "--";
 
@@ -639,12 +639,12 @@ function saveCalculatorState() {
 
 async function loadCalculatorState() {
   const { calculatorState } = await chrome.storage.local.get("calculatorState");
-  
+
   // Set INPC limits (data available until previous month, starting from Jan 1969)
   const d = new Date();
   d.setMonth(d.getMonth() - 1);
   const maxMonth = d.toISOString().slice(0, 7);
-  
+
   const initDateEl = $("#fiscalInitialDate");
   const finalDateEl = $("#fiscalFinalDate");
   if (initDateEl) {
@@ -1065,9 +1065,9 @@ async function loadYieldCurve() {
             borderWidth: 1,
             displayColors: false,
             callbacks: {
-              label: function (ctx) { 
+              label: function (ctx) {
                 const isBonos = chartData[ctx.dataIndex].type === 'bonos';
-                return ` ${isBonos ? 'Bono M' : 'CETES'}  ${ctx.parsed.y.toFixed(2)}%`; 
+                return ` ${isBonos ? 'Bono M' : 'CETES'}  ${ctx.parsed.y.toFixed(2)}%`;
               }
             }
           }
@@ -1450,7 +1450,7 @@ async function renderCustomAlertsList() {
   customAlerts.forEach(alert => {
     const item = document.createElement("div");
     item.className = "flex items-center justify-between bg-white/5 border border-white/10 p-2 rounded group";
-    
+
     // Format the base value neatly
     let baseFormat = alert.baseValue;
     if (typeof alert.baseValue === 'number') {
@@ -1489,9 +1489,9 @@ async function renderCustomAlertsList() {
 function initCustomAlertsSettings(sieSeries, cachedSeriesData) {
   const selectEl = $("#alertSeriesSelect");
   if (!selectEl) return;
-  
+
   selectEl.innerHTML = "";
-  
+
   if (!sieSeries || sieSeries.length === 0) {
     const opt = document.createElement("option");
     opt.textContent = "No hay indicadores";
@@ -1499,9 +1499,9 @@ function initCustomAlertsSettings(sieSeries, cachedSeriesData) {
     selectEl.appendChild(opt);
     return;
   }
-  
+
   const allMetadata = [...DEFAULT_SERIES, ...YF_CATALOG];
-  
+
   sieSeries.forEach(s => {
     const meta = allMetadata.find(d => d.id === s.id) || s;
     const opt = document.createElement("option");
@@ -1516,35 +1516,35 @@ function initCustomAlertsSettings(sieSeries, cachedSeriesData) {
 $("#addAlertBtn")?.addEventListener("click", async () => {
   const selectEl = $("#alertSeriesSelect");
   const thresholdInput = $("#alertThresholdInput");
-  
+
   const seriesId = selectEl.value;
   const seriesName = selectEl.options[selectEl.selectedIndex]?.text;
   const threshold = parseFloat(thresholdInput.value);
-  
+
   if (!seriesId || isNaN(threshold) || threshold <= 0) {
     return showToast("Ingresa un porcentaje válido");
   }
 
   const { cachedSeriesData = [] } = await chrome.storage.local.get("cachedSeriesData");
   const currentData = cachedSeriesData.find(s => s.id === seriesId);
-  
+
   if (!currentData || currentData.val === "—" || currentData.error) {
     return showToast("Esperando datos actualizados", 2000);
   }
-  
+
   const baseValueTStr = currentData.val.toString().replace(",", ".");
   const baseValue = parseFloat(baseValueTStr);
-  
+
   if (isNaN(baseValue)) {
     return showToast("El valor base no es numérico");
   }
 
   const { customAlerts = [] } = await chrome.storage.local.get("customAlerts");
-  
+
   if (customAlerts.length >= 10) {
     return showToast("Límite de 10 alertas");
   }
-  
+
   const newAlert = {
     id: crypto.randomUUID(),
     seriesId,
@@ -1552,12 +1552,11 @@ $("#addAlertBtn")?.addEventListener("click", async () => {
     threshold,
     baseValue
   };
-  
+
   customAlerts.push(newAlert);
   await chrome.storage.local.set({ customAlerts });
-  
+
   thresholdInput.value = "";
   showToast("Alerta creada");
   renderCustomAlertsList();
 });
-
