@@ -1,4 +1,23 @@
-import { fmtValue, fmtDate } from './utils.js';
+import { fmtValue, fmtDate, escapeHTML } from './utils.js';
+
+describe('escapeHTML', () => {
+  test('escapes HTML special characters', () => {
+    expect(escapeHTML('<b>"Hello" & \'World\'</b>')).toBe('&lt;b&gt;&quot;Hello&quot; &amp; &#039;World&#039;&lt;/b&gt;');
+  });
+
+  test('returns empty string for null or undefined', () => {
+    expect(escapeHTML(null)).toBe('');
+    expect(escapeHTML(undefined)).toBe('');
+  });
+
+  test('handles strings without special characters', () => {
+    expect(escapeHTML('Plain text')).toBe('Plain text');
+  });
+
+  test('converts non-string values to string and escapes', () => {
+    expect(escapeHTML(123)).toBe('123');
+  });
+});
 
 describe('fmtValue', () => {
   test('returns "—" for null, undefined, empty string or "N/E"', () => {

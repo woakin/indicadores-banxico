@@ -1,5 +1,5 @@
 import { DEFAULT_SERIES, CORE_HEALTH_SERIES, EXTERNAL_VULN_SERIES, YF_CATALOG, YIELD_CURVE_SERIES, EXPECTATIONS_SERIES } from './constants.js';
-import { fmtValue, fmtDate, latestValidObservation } from './utils.js';
+import { fmtValue, fmtDate, latestValidObservation, escapeHTML } from './utils.js';
 
 const $ = s => document.querySelector(s);
 
@@ -82,8 +82,11 @@ function render(rows, containerOrWarn = false) {
            <div class="empty-state-icon">👋</div>
            <h4>Bienvenido a Indicadores MX</h4>
            <p>Para comenzar, necesitas configurar tus conexiones a las APIs oficiales. Son gratuitas y seguras.</p>
-           <button class="btn" onclick="chrome.tabs.create({ url: 'onboarding.html'})">Configurar ahora</button>
+           <button class="btn onboarding-btn">Configurar ahora</button>
         </div>`;
+      container.querySelector(".onboarding-btn")?.addEventListener("click", () => {
+        chrome.tabs.create({ url: 'onboarding.html'});
+      });
     } else {
       container.innerHTML = '<p class="muted" style="text-align:center">No hay indicadores seleccionados.</p>';
     }
@@ -98,7 +101,7 @@ function render(rows, containerOrWarn = false) {
     seenIds.add(cardId);
 
     let card = document.getElementById(cardId);
-    
+
     if (card) {
       // --- Update Existing Card ---
       const valText = card.querySelector(".val-text");
@@ -109,7 +112,7 @@ function render(rows, containerOrWarn = false) {
 
       if (valText) valText.textContent = r.value;
       if (dateText) dateText.textContent = r.date;
-      
+
       if (variationRow) {
         if (r.variationHtml) {
           variationRow.innerHTML = r.variationHtml;
@@ -163,7 +166,7 @@ function render(rows, containerOrWarn = false) {
 
     // NEW CARD STRUCTURE
     const info = document.createElement("div");
-    info.className = "flex flex-col h-full relative"; 
+    info.className = "flex flex-col h-full relative";
 
     // Top row: Title and Badge
     const topRow = document.createElement("div");
@@ -217,7 +220,7 @@ function render(rows, containerOrWarn = false) {
     date.className = "date-text text-[10px] text-text-muted font-medium tracking-wide mt-1.5";
     date.textContent = r.date;
     valueRow.appendChild(date);
-    
+
     info.appendChild(valueRow);
 
     // Bottom Row: Variation & Actions
@@ -275,7 +278,7 @@ function render(rows, containerOrWarn = false) {
     actions.appendChild(graphBtn);
 
     bottomRow.appendChild(actions);
-    
+
     info.appendChild(bottomRow);
     card.appendChild(info);
 
@@ -423,13 +426,13 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
   const renderAnalysisSection = (list, containerId) => {
     const analysisRows = list.map(cfg => {
       const s = byId.get(cfg.id);
-      
+
       let variationHtml = "";
       if (s && typeof s.val === 'string' && typeof s.prev === 'string' && s.val !== "—") {
           const v1 = parseFloat(s.val.replace(",", "."));
           const v2 = parseFloat(s.prev.replace(",", "."));
           const diff = v1 - v2;
-          
+
           if (!isNaN(diff) && v2 !== 0) {
               let displayVal = "";
               let numVal = 0;
@@ -441,7 +444,7 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
                   numVal = (diff / v2) * 100;
                   displayVal = (numVal > 0 ? "+" : "") + numVal.toFixed(2) + "%";
               }
-              
+
               if (numVal !== 0) {
                   const isPositive = numVal > 0;
                   // Handle inverse logic for unemployment (higher is worse) or INPC (higher inflation is worse)
@@ -450,12 +453,12 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
                   let colorClass = isPositive ? "bg-emerald-500/10" : "bg-rose-500/10";
                   let textClass = isPositive ? "text-emerald-400" : "text-rose-400";
                   const isInverse = cfg.title.toLowerCase().includes("infl") || cfg.title.toLowerCase().includes("desocupación") || cfg.title.toLowerCase().includes("usd/mxn");
-                  
+
                   if (isInverse) {
                       colorClass = isPositive ? "bg-rose-500/10" : "bg-emerald-500/10";
                       textClass = isPositive ? "text-rose-400" : "text-emerald-400";
                   }
-                  
+
                   const arrowIcon = isPositive ? "arrow_upward" : "arrow_downward";
                   const periodText = cfg.periodicity ? cfg.periodicity.toLowerCase() : "";
                   variationHtml = `
@@ -465,7 +468,7 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
                         </span>
                         <div class="flex flex-col justify-center">
                             <span class="${textClass} text-[11.5px] font-bold leading-none">${Math.abs(numVal).toFixed(2)}%</span>
-                            ${periodText ? `<span class="text-slate-500 text-[8.5px] font-bold uppercase tracking-wider mt-0.5 leading-none">${periodText}</span>` : ''}
+                            ${periodText ? `<span class="text-slate-500 text-[8.5px] font-bold uppercase tracking-wider mt-0.5 leading-none">${escapeHTML(periodText)}</span>` : ''}
                         </div>
                     </div>
                   `;
@@ -492,14 +495,14 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
     const container = $("#expectationsCards");
     if (!container) return;
     container.innerHTML = "";
-    
+
     EXPECTATIONS_SERIES.forEach(cfg => {
       const sT = byId.get(cfg.idT);
       const sT1 = byId.get(cfg.idT1);
-      
+
       const valT = sT && sT.val !== "—" ? sT.val : null;
       const valT1 = sT1 && sT1.val !== "—" ? sT1.val : null;
-      
+
       let trendHtml = "";
       if (valT && typeof valT === 'string' && valT1 && typeof valT1 === 'string') {
         const v1 = parseFloat(valT.replace(",", "."));
@@ -507,14 +510,14 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
         if (v2 > v1) trendHtml = `<span class="text-rose-400 font-bold ml-1" title="Al alza">↑</span>`;
         else if (v2 < v1) trendHtml = `<span class="text-emerald-400 font-bold ml-1" title="A la baja">↓</span>`;
         else trendHtml = `<span class="text-slate-400 font-bold ml-1" title="Sin cambio">=</span>`;
-        
+
         // Inverse logic for PIB (growth is good/emerald, inflation/rates up is bad/rose)
         if (cfg.title.includes("PIB")) {
           if (v2 > v1) trendHtml = `<span class="text-emerald-400 font-bold ml-1" title="Al alza">↑</span>`;
           else if (v2 < v1) trendHtml = `<span class="text-rose-400 font-bold ml-1" title="A la baja">↓</span>`;
         }
       }
-      
+
       const displayT = valT ? fmtValue({ type: cfg.type, decimals: cfg.decimals, currency: cfg.currency }, valT) : "--";
       const displayT1 = valT1 ? fmtValue({ type: cfg.type, decimals: cfg.decimals, currency: cfg.currency }, valT1) : "--";
 
@@ -522,13 +525,13 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
       card.className = "bg-white/5 border border-white/10 rounded-xl p-3 flex justify-between items-center";
       card.innerHTML = `
         <div class="flex flex-col">
-          <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">${cfg.title}</span>
-          <span class="text-[9px] text-slate-500 mt-0.5">${cfg.periodicity}</span>
+          <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">${escapeHTML(cfg.title)}</span>
+          <span class="text-[9px] text-slate-500 mt-0.5">${escapeHTML(cfg.periodicity)}</span>
         </div>
         <div class="text-sm font-bold text-white tabular-nums flex items-center gap-2">
-           <span class="text-slate-300" title="Periodo t">${displayT}</span>
+           <span class="text-slate-300" title="Periodo t">${escapeHTML(displayT)}</span>
            <span class="text-slate-600 text-[10px] material-symbols-outlined">arrow_forward</span>
-           <span title="Periodo t+1">${displayT1}${trendHtml}</span>
+           <span title="Periodo t+1">${escapeHTML(displayT1)}${trendHtml}</span>
         </div>
       `;
       container.appendChild(card);
@@ -550,7 +553,7 @@ function renderData(cachedSeriesData, sieSeries, lastUpdated) {
 
     if (cVal > eVal) {
       warningEl.style.display = "block";
-      warningEl.innerHTML = `⚠️ <strong>Dato actual (${cVal.toFixed(2)}%)</strong> por encima del consenso de cierre (${eVal.toFixed(2)}%)`;
+      warningEl.innerHTML = `⚠️ <strong>Dato actual (${escapeHTML(cVal.toFixed(2))}%)</strong> por encima del consenso de cierre (${escapeHTML(eVal.toFixed(2))}%)`;
     } else {
       warningEl.style.display = "none";
     }
@@ -639,12 +642,12 @@ function saveCalculatorState() {
 
 async function loadCalculatorState() {
   const { calculatorState } = await chrome.storage.local.get("calculatorState");
-  
+
   // Set INPC limits (data available until previous month, starting from Jan 1969)
   const d = new Date();
   d.setMonth(d.getMonth() - 1);
   const maxMonth = d.toISOString().slice(0, 7);
-  
+
   const initDateEl = $("#fiscalInitialDate");
   const finalDateEl = $("#fiscalFinalDate");
   if (initDateEl) {
@@ -694,8 +697,10 @@ function updateRealRateMonitor(targetRateSerie, inflationSerie, cetesSerie, tiie
     const spread = tiie - nominal;
     const spreadEl = $("#tiieSpread");
     if (spreadEl) {
+      const sign = spread > 0 ? "+" : "";
+      const displaySpread = escapeHTML(spread.toFixed(2));
       const warning = spread > 0.50 ? ' <span title="Spread inusualmente alto (>0.50%)" style="cursor:help">⚠️</span>' : '';
-      spreadEl.innerHTML = `TIIE vs Objetivo: ${spread > 0 ? "+" : ""}${spread.toFixed(2)}%${warning}`;
+      spreadEl.innerHTML = `TIIE vs Objetivo: ${sign}${displaySpread}%${warning}`;
     }
   }
 
@@ -861,11 +866,28 @@ async function showHistoricalView(seriesId, title, config) {
       $("#exportCsv").style.display = "inline-flex";
 
       const table = document.createElement("table");
-      table.innerHTML = "<thead><tr><th>Fecha</th><th style='text-align:right'>Valor</th></tr></thead>";
+      const thead = document.createElement("thead");
+      const headerTr = document.createElement("tr");
+      const thFecha = document.createElement("th");
+      thFecha.textContent = "Fecha";
+      const thValor = document.createElement("th");
+      thValor.textContent = "Valor";
+      thValor.style.textAlign = "right";
+      headerTr.appendChild(thFecha);
+      headerTr.appendChild(thValor);
+      thead.appendChild(headerTr);
+      table.appendChild(thead);
+
       const tbody = document.createElement("tbody");
       for (let i = resp.data.length - 1; i >= 0; i--) {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${fmtDate(resp.data[i].fecha, config.periodicity)}</td><td style="text-align:right">${fmtValue(config, resp.data[i].dato)}</td>`;
+        const tdFecha = document.createElement("td");
+        tdFecha.textContent = fmtDate(resp.data[i].fecha, config.periodicity);
+        const tdValor = document.createElement("td");
+        tdValor.textContent = fmtValue(config, resp.data[i].dato);
+        tdValor.style.textAlign = "right";
+        tr.appendChild(tdFecha);
+        tr.appendChild(tdValor);
         tbody.appendChild(tr);
       }
       table.appendChild(tbody);
@@ -1065,9 +1087,9 @@ async function loadYieldCurve() {
             borderWidth: 1,
             displayColors: false,
             callbacks: {
-              label: function (ctx) { 
+              label: function (ctx) {
                 const isBonos = chartData[ctx.dataIndex].type === 'bonos';
-                return ` ${isBonos ? 'Bono M' : 'CETES'}  ${ctx.parsed.y.toFixed(2)}%`; 
+                return ` ${isBonos ? 'Bono M' : 'CETES'}  ${ctx.parsed.y.toFixed(2)}%`;
               }
             }
           }
@@ -1216,12 +1238,12 @@ async function loadEconomicCalendar() {
 
       item.innerHTML = `
           <div class="flex items-start justify-between w-full mb-1">
-            <a href="${ev.link}" target="_blank" rel="noopener noreferrer" title="View details on MyFxBook" class="calendar-item-title hover:text-primary hover:underline pr-2 leading-tight transition-colors cursor-pointer">${ev.title} <span class="text-slate-500 font-normal">(${ev.country})</span></a>
+            <a href="${escapeHTML(ev.link)}" target="_blank" rel="noopener noreferrer" title="View details on MyFxBook" class="calendar-item-title hover:text-primary hover:underline pr-2 leading-tight transition-colors cursor-pointer">${escapeHTML(ev.title)} <span class="text-slate-500 font-normal">(${escapeHTML(ev.country)})</span></a>
             <span class="${impactClass} shrink-0 mt-0.5">${impactLabel}</span>
           </div>
           <div class="flex items-center justify-between w-full">
-             <span class="calendar-item-time" style="text-transform: capitalize">${displayDate} &bull; ${displayTime}</span>
-             <span class="text-[11px] text-slate-400 font-medium tabular-nums">Prev: <span class="text-white">${ev.previous || '--'}</span> <span class="text-slate-600 mx-1">|</span> Proy: <span class="text-white">${ev.forecast || '--'}</span></span>
+             <span class="calendar-item-time" style="text-transform: capitalize">${escapeHTML(displayDate)} &bull; ${escapeHTML(displayTime)}</span>
+             <span class="text-[11px] text-slate-400 font-medium tabular-nums">Prev: <span class="text-white">${escapeHTML(ev.previous || '--')}</span> <span class="text-slate-600 mx-1">|</span> Proy: <span class="text-white">${escapeHTML(ev.forecast || '--')}</span></span>
           </div>
         `;
       container.appendChild(item);
@@ -1450,7 +1472,7 @@ async function renderCustomAlertsList() {
   customAlerts.forEach(alert => {
     const item = document.createElement("div");
     item.className = "flex items-center justify-between bg-white/5 border border-white/10 p-2 rounded group";
-    
+
     // Format the base value neatly
     let baseFormat = alert.baseValue;
     if (typeof alert.baseValue === 'number') {
@@ -1460,14 +1482,14 @@ async function renderCustomAlertsList() {
     item.innerHTML = `
       <div class="flex items-center gap-3">
         <div class="bg-primary/20 text-primary px-2 py-1 rounded text-[10px] font-bold border border-primary/30">
-          ±${alert.threshold}%
+          ±${escapeHTML(alert.threshold)}%
         </div>
         <div>
-          <div class="text-[11px] font-bold text-white mb-0.5">${alert.seriesName}</div>
-          <div class="text-[9px] text-slate-400">Avisar si varía desde ${baseFormat}</div>
+          <div class="text-[11px] font-bold text-white mb-0.5">${escapeHTML(alert.seriesName)}</div>
+          <div class="text-[9px] text-slate-400">Avisar si varía desde ${escapeHTML(baseFormat)}</div>
         </div>
       </div>
-      <button class="text-slate-500 hover:text-danger hover:bg-danger/10 p-1 rounded transition-colors delete-alert-btn opacity-0 group-hover:opacity-100 focus:opacity-100" data-id="${alert.id}" title="Eliminar Alerta">
+      <button class="text-slate-500 hover:text-danger hover:bg-danger/10 p-1 rounded transition-colors delete-alert-btn opacity-0 group-hover:opacity-100 focus:opacity-100" data-id="${escapeHTML(alert.id)}" title="Eliminar Alerta">
         <span class="material-symbols-outlined text-[16px] block">delete</span>
       </button>
     `;
@@ -1489,9 +1511,9 @@ async function renderCustomAlertsList() {
 function initCustomAlertsSettings(sieSeries, cachedSeriesData) {
   const selectEl = $("#alertSeriesSelect");
   if (!selectEl) return;
-  
+
   selectEl.innerHTML = "";
-  
+
   if (!sieSeries || sieSeries.length === 0) {
     const opt = document.createElement("option");
     opt.textContent = "No hay indicadores";
@@ -1499,9 +1521,9 @@ function initCustomAlertsSettings(sieSeries, cachedSeriesData) {
     selectEl.appendChild(opt);
     return;
   }
-  
+
   const allMetadata = [...DEFAULT_SERIES, ...YF_CATALOG];
-  
+
   sieSeries.forEach(s => {
     const meta = allMetadata.find(d => d.id === s.id) || s;
     const opt = document.createElement("option");
@@ -1516,35 +1538,35 @@ function initCustomAlertsSettings(sieSeries, cachedSeriesData) {
 $("#addAlertBtn")?.addEventListener("click", async () => {
   const selectEl = $("#alertSeriesSelect");
   const thresholdInput = $("#alertThresholdInput");
-  
+
   const seriesId = selectEl.value;
   const seriesName = selectEl.options[selectEl.selectedIndex]?.text;
   const threshold = parseFloat(thresholdInput.value);
-  
+
   if (!seriesId || isNaN(threshold) || threshold <= 0) {
     return showToast("Ingresa un porcentaje válido");
   }
 
   const { cachedSeriesData = [] } = await chrome.storage.local.get("cachedSeriesData");
   const currentData = cachedSeriesData.find(s => s.id === seriesId);
-  
+
   if (!currentData || currentData.val === "—" || currentData.error) {
     return showToast("Esperando datos actualizados", 2000);
   }
-  
+
   const baseValueTStr = currentData.val.toString().replace(",", ".");
   const baseValue = parseFloat(baseValueTStr);
-  
+
   if (isNaN(baseValue)) {
     return showToast("El valor base no es numérico");
   }
 
   const { customAlerts = [] } = await chrome.storage.local.get("customAlerts");
-  
+
   if (customAlerts.length >= 10) {
     return showToast("Límite de 10 alertas");
   }
-  
+
   const newAlert = {
     id: crypto.randomUUID(),
     seriesId,
@@ -1552,12 +1574,11 @@ $("#addAlertBtn")?.addEventListener("click", async () => {
     threshold,
     baseValue
   };
-  
+
   customAlerts.push(newAlert);
   await chrome.storage.local.set({ customAlerts });
-  
+
   thresholdInput.value = "";
   showToast("Alerta creada");
   renderCustomAlertsList();
 });
-

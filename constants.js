@@ -75,8 +75,8 @@ export const EXPECTATIONS_SERIES = [
   {
     category: "expectation",
     title: "Tasa Banxico (Trimestral)",
-    idT: "SR14482", 
-    idT1: "SR14489", 
+    idT: "SR14482",
+    idT1: "SR14489",
     type: "percent",
     decimals: 2,
     periodicity: "Trimestral",
@@ -85,8 +85,8 @@ export const EXPECTATIONS_SERIES = [
   {
     category: "expectation",
     title: "Inflación General (Anual)",
-    idT: "SR14138", 
-    idT1: "SR14145", 
+    idT: "SR14138",
+    idT1: "SR14145",
     type: "percent",
     decimals: 2,
     periodicity: "Anual",
@@ -95,8 +95,8 @@ export const EXPECTATIONS_SERIES = [
   {
     category: "expectation",
     title: "PIB (Trimestral)",
-    idT: "SR14658", 
-    idT1: "SR14665", 
+    idT: "SR14658",
+    idT1: "SR14665",
     type: "percent",
     decimals: 2,
     periodicity: "Trimestral",

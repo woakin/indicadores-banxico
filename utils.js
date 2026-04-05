@@ -114,3 +114,20 @@ export function fmtDate(dateStr, periodicity) {
 
   return date.toLocaleDateString("es-MX", opts);
 }
+
+/**
+ * Escapes HTML special characters in a string.
+ * @param {string} str - The string to escape
+ * @returns {string} Escaped string
+ */
+export function escapeHTML(str) {
+  if (!str) return "";
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return String(str).replace(/[&<>"']/g, (m) => map[m]);
+}
