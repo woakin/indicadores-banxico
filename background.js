@@ -5,38 +5,6 @@ import { latestValidObservation } from './utils.js';
 
 // Note: Binance Crypto API was deprecated in favor of unified Yahoo Finance.
 
-async function fetchYahooMarketTicker(symbols = ["^GSPC", "^IXIC"]) {
-    try {
-        const fetchAsset = async (sym) => {
-            try {
-                const symQuery = encodeURIComponent(sym);
-                const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symQuery}?interval=1d&range=1d`, {
-                    headers: { 'User-Agent': 'Mozilla/5.0' }
-                });
-                if (!r.ok) return null;
-                const json = await r.json();
-                const meta = json.chart?.result?.[0]?.meta;
-                if (!meta) return null;
-                const price = meta.regularMarketPrice;
-                const prev = meta.chartPreviousClose;
-                if (price === undefined || prev === undefined) return null;
-                const change = ((price - prev) / prev) * 100;
-                return { symbol: sym, price: price.toFixed(2), change: change.toFixed(2) };
-            } catch (err) {
-                console.warn(`[Background] Failed to fetch ticker: ${sym}`, err);
-                return null;
-            }
-        };
-
-        const results = await Promise.all(symbols.map(sym => fetchAsset(sym)));
-
-        return results.filter(r => r !== null);
-    } catch (e) {
-        console.error("[Background] Yahoo Market Ticker fetch failed:", e);
-        throw e;
-    }
-}
-
 async function fetchEconomicCalendar() {
     try {
         const { cachedCalendarV3, calendarLastUpdatedV3 } = await chrome.storage.local.get([
@@ -144,24 +112,6 @@ async function fetchEconomicCalendar() {
     }
 }
 
-async function fetchOportuno(idsCsv, token) {
-    const url = `${BANXICO_API_BASE}/series/${idsCsv}/datos/oportuno?mediaType=json&token=${encodeURIComponent(token)}`;
-    const r = await fetch(url, { cache: "no-store" });
-    if (!r.ok) {
-        if (r.status === 401) throw new Error("Token SIE inválido");
-        if (r.status === 404) throw new Error("Serie no encontrada");
-        throw new Error(`Error HTTP ${r.status}`);
-    }
-    return r.json();
-}
-
-async function fetchLastN(id, token, n = 20) {
-    const url = `${BANXICO_API_BASE}/series/${id}/datos/last/${n}?mediaType=json&token=${encodeURIComponent(token)}`;
-    const r = await fetch(url, { cache: "no-store" });
-    if (!r.ok) throw new Error(`Error HTTP ${r.status}`);
-    return r.json();
-}
-
 async function fetchBanxicoSeries(ids, token) {
     if (ids.length === 0) return [];
 
@@ -189,9 +139,9 @@ async function fetchBanxicoSeries(ids, token) {
         };
     };
 
-    // We must fetch data points individually because we need the `prev` observation 
-    // to calculate variation. The batch API `fetchOportuno` only returns 1 point.
-    
+    // We must fetch data points individually because we need the `prev` observation
+    // to calculate variation. The batch API `oportuno` endpoint only returns 1 point.
+
     // Calculate date range: Today down to 2 years ago (to cover annual and monthly series)
     const d = new Date();
     const endDate = d.toISOString().split("T")[0]; // YYYY-MM-DD
@@ -201,10 +151,10 @@ async function fetchBanxicoSeries(ids, token) {
     const promises = ids.map(async (id) => {
         try {
             const dataArr = await fetchHistoricalData(id, token, startDate, endDate);
-            
+
             // Reformat it to match what `formatItem` expects (a series object `s`)
             // which has `datos` inner array, `idSerie`, and `titulo`.
-            
+
             return formatItem({ idSerie: id, titulo: id, datos: dataArr });
         } catch (indErr) {
             console.warn(`[Background] Banxico fetch failure for ${id}:`, indErr.message);
@@ -235,7 +185,7 @@ async function fetchYfBatchProxy(yfIds) {
     if (!yfIds || yfIds.length === 0) return [];
 
     const symbols = yfIds.map(id => id.replace("YF_", "").toUpperCase());
-    
+
     // Yahoo v7/quote fails without crumb. We use v8/chart in parallel.
     const fetchAsset = async (symbol) => {
         try {
@@ -325,13 +275,13 @@ async function fetchInegiSeries(inegiId, token) {
             if (r.ok) {
                 const json = await r.json();
                 const obsArray = json.Series?.[0]?.OBSERVATIONS;
-                
+
                 if (obsArray && obsArray.length > 0) {
                     const len = obsArray.length;
                     // INEGI data is returned chronologically (oldest at index 0)
                     const latest = obsArray[len - 1];
                     const prev = len > 1 ? obsArray[len - 2] : null;
-                    
+
                     let variation = null;
                     if (latest && prev) {
                         const v1 = parseFloat(latest.OBS_VALUE);
