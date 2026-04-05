@@ -100,4 +100,9 @@ describe('fmtDate', () => {
     // 13/2023 matches MM/YYYY regex. JS Date rolls it over to Jan 2024.
     expect(fmtDate('13/2023', 'Mensual')).toBe('ene 2024');
   });
+
+  test('returns original string if no regex matches in fallback', () => {
+    expect(fmtDate('random string', 'Mensual')).toBe('random string');
+    expect(fmtDate('2023/12/12', 'Diario')).toBe('2023/12/12');
+  });
 });
